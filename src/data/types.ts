@@ -75,3 +75,27 @@ export interface Db {
   dexes: Record<DexId, string[]>
   meta: { built: string; species: number; source: string }
 }
+
+export type Avail = 'both' | 'scarlet' | 'violet'
+
+export interface WildSpawn {
+  loc: string
+  /** sub-area inside a big location (Area Zero's "Upper Field", a Terarium cave) */
+  sub?: string
+  r: DexId
+  /** biome within the location */
+  b: string
+  lv: string
+  /** % of spawns in this biome (morning, day, evening, night) */
+  p: [number, number, number, number]
+  v: Avail
+  /** form slug when not the region's usual form */
+  f?: string
+  /** % chance it appears in a group */
+  g?: number
+  on?: ('land' | 'water' | 'sky')[]
+}
+
+export interface FixedSpawn { loc: string; r: DexId; where: string; lv: string; v: Avail; f?: string; note?: string }
+export interface RaidSpawn { r: DexId; s: number; lv: string; v: Avail; f?: string }
+export interface Encounters { wild: WildSpawn[]; fixed: FixedSpawn[]; raids: RaidSpawn[] }

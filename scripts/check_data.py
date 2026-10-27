@@ -56,6 +56,18 @@ pika_lv = [(lv, M[i]["n"]) for lv, i in form("pikachu")["lv"]]
 check(any(n == "Thunder Shock" for _, n in pika_lv), "Pikachu learns Thunder Shock by level")
 check(by["raichu"]["final"] and not by["pikachu"]["final"], "Raichu is final, Pikachu is not")
 
+ENC = json.loads((DATA / "encounters.json").read_text(encoding="utf-8")) if (DATA / "encounters.json").exists() else {}
+if ENC:
+    pika = ENC["pikachu"]["wild"]
+    check(any(w["loc"] == "South Province (Area Two)" and w["b"] == "Forest" for w in pika), "Pikachu spawns in South Province (Area Two) forests")
+    check(all(0 < max(w["p"]) <= 100 for e in ENC.values() for w in e["wild"]), "every wild spawn has odds between 0 and 100%")
+    ralts = next(w for w in ENC["ralts"]["wild"] if w["loc"] == "South Province (Area One)")
+    check(ralts["p"][3] == 0 and ralts["p"][1] > 0, "Ralts in South Province (Area One) never spawns at night")
+    check(all(w["v"] == "violet" for w in ENC["dreepy"]["wild"]), "Dreepy's wild spawns are Violet-only")
+    check(any(r["s"] == 3 for r in ENC["pikachu"]["raids"]), "Pikachu appears in 3-star raids")
+    check(any(w.get("f") == "wooper-paldea" for w in ENC["wooper"]["wild"]) and any("f" not in w for w in ENC["wooper"]["wild"]),
+          "Wooper spawns are split into Paldean and Johto forms")
+
 missing = [f["slug"] for p in P for f in p["forms"] if not (f["types"] and f["lv"] and (f["art"] or f["spr"]))]
 check(not missing, f"every form has types, a level-up learnset and art (missing: {missing[:8]})")
 

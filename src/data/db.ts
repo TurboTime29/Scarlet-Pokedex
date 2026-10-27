@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Db, DexId, EvoNode, Form, Species } from './types'
+import type { Db, DexId, Encounters, EvoNode, Form, Species } from './types'
 
 const base = import.meta.env.BASE_URL
 
@@ -71,4 +71,19 @@ export function formLabel(f: Form): string {
 
 export function pad(n: number) {
   return String(n).padStart(3, '0')
+}
+
+// Encounter data is ~500 KB, so it loads the first time a Pokémon page needs it.
+let encounters: Record<string, Encounters> | null = null
+let encountersPromise: Promise<void> | null = null
+const encListeners = new Set<() => void>()
+
+export function useEncounters(): Record<string, Encounters> | null {
+  if (!encountersPromise) {
+    encountersPromise = fetch(`${base}data/encounters.json`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))
+      .then((d) => { encounters = d; encListeners.forEach((l) => l()) })
+  }
+  return useSyncExternalStore((l) => { encListeners.add(l); return () => encListeners.delete(l) }, () => encounters, () => encounters)
 }

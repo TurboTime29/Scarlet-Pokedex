@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { DexId } from '../data/types'
+import type { ShinyBoosts } from '../lib/shiny'
 
 export type CaughtFilter = 'all' | 'caught' | 'missing' | 'team'
 export const TEAM_SIZE = 6
@@ -14,6 +15,8 @@ interface Prefs {
   caught: string[]
   /** form slugs on the team, in order */
   team: string[]
+  boosts: ShinyBoosts
+  setBoosts: (b: Partial<ShinyBoosts>) => void
   setShiny: (v: boolean) => void
   setHideViolet: (v: boolean) => void
   setDex: (d: DexId) => void
@@ -34,6 +37,8 @@ export const usePrefs = create<Prefs>()(
       filter: 'all',
       caught: [],
       team: [],
+      boosts: { charm: false, sparkling: 0, outbreak: 0, masuda: false },
+      setBoosts: (b) => set((s) => ({ boosts: { ...s.boosts, ...b } })),
       setShiny: (shiny) => set({ shiny }),
       setHideViolet: (hideViolet) => set({ hideViolet }),
       setDex: (dex) => set({ dex }),

@@ -8,6 +8,8 @@ import { CaughtToggle, Img, Types, VersionBadge } from '../components/ui'
 import { EvolutionLine } from '../components/EvolutionLine'
 import { Matchups } from '../components/Matchups'
 import { MoveTable } from '../components/MoveTable'
+import { Encounters } from '../components/Encounters'
+import { ShinyOdds } from '../components/ShinyOdds'
 
 const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed']
 
@@ -87,6 +89,11 @@ export default function PokemonPage({ db }: { db: Db }) {
 
       {s.flavor && <p className="text-sm italic leading-relaxed muted">“{s.flavor}”</p>}
 
+      <section>
+        <h2 className="section-title">Where to find it</h2>
+        <Encounters db={db} s={s} f={f} />
+      </section>
+
       <WorthRaising db={db} s={s} f={f} />
 
       <section>
@@ -97,6 +104,11 @@ export default function PokemonPage({ db }: { db: Db }) {
       <section>
         <h2 className="section-title">Type matchups</h2>
         <Matchups types={f.types} />
+      </section>
+
+      <section>
+        <h2 className="section-title">✨ Shiny odds</h2>
+        <ShinyOdds s={s} f={f} />
       </section>
 
       <section>

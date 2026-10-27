@@ -4,6 +4,7 @@ import type { Db, Form, Species } from '../data/types'
 import { defensiveMatchups, effectiveness, offensiveCoverage } from './types'
 import { findCounters } from './counters'
 import { summarizeTeam } from './team'
+import { shinyChance, shinyRolls } from './shiny'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -69,5 +70,17 @@ describe('team summary', () => {
     expect(s.weak.water).toBe(2)
     expect(s.threats).toContain('water')
     expect(s.gaps).toContain('water')
+  })
+})
+
+describe('shiny odds', () => {
+  const none = { charm: false, sparkling: 0, outbreak: 0, masuda: false } as const
+  const odds = (rolls: number) => Math.round(100 / shinyChance(rolls)) / 100
+  it('matches the known Scarlet/Violet rates', () => {
+    expect(odds(shinyRolls('wild', none))).toBe(4096)
+    expect(odds(shinyRolls('wild', { ...none, charm: true }))).toBe(1365.67)
+    expect(odds(shinyRolls('wild', { ...none, sparkling: 3 }))).toBe(1024.38)
+    expect(odds(shinyRolls('wild', { charm: true, sparkling: 3, outbreak: 2, masuda: false }))).toBe(512.44)
+    expect(odds(shinyRolls('egg', { ...none, charm: true, masuda: true }))).toBe(512.44)
   })
 })
