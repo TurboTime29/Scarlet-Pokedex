@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+scripts/raw/
+scripts/__pycache__/
+.claude/
+*.tsbuildinfo
+scripts/.venv/
