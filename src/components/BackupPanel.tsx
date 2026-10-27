@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { backupJson, usePrefs } from '../store/prefs'
+import { useSession } from '../lib/sync'
 
 /** Export / import the caught list and team as a JSON file (storage on iPhone home-screen apps can be cleared). */
 export function BackupPanel() {
   const importBackup = usePrefs((s) => s.importBackup)
+  const session = useSession()
   const file = useRef<HTMLInputElement>(null)
   const [msg, setMsg] = useState('')
 
@@ -38,7 +40,11 @@ export function BackupPanel() {
   return (
     <section className="card p-3">
       <h2 className="font-display text-base font-bold">Backup</h2>
-      <p className="mt-0.5 text-xs muted">Your caught list and team are saved on this device only. Export a backup now and then — iPhone can clear website storage for home-screen apps.</p>
+      <p className="mt-0.5 text-xs muted">
+        {session
+          ? 'Your caught list and team are synced to your account. A file backup is optional — handy before big changes.'
+          : 'Your caught list and team are saved on this device only. Sign in above, or export a backup now and then — iPhone can clear website storage for home-screen apps.'}
+      </p>
       <div className="mt-2 flex gap-2">
         <button className="btn-ghost flex-1" onClick={exportFile}>⬇️ Export backup</button>
         <button className="btn-ghost flex-1" onClick={() => file.current?.click()}>⬆️ Import backup</button>
