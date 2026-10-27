@@ -11,6 +11,7 @@
     "data": "python scripts/build_data.py && python scripts/check_data.py"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
     "fuse.js": "^7.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

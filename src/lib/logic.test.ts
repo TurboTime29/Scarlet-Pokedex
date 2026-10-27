@@ -5,6 +5,7 @@ import { defensiveMatchups, effectiveness, offensiveCoverage } from './types'
 import { findCounters } from './counters'
 import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
+import { mergeProgress, type ProgressDoc } from '../store/prefs'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -82,5 +83,20 @@ describe('shiny odds', () => {
     expect(odds(shinyRolls('wild', { ...none, sparkling: 3 }))).toBe(1024.38)
     expect(odds(shinyRolls('wild', { charm: true, sparkling: 3, outbreak: 2, masuda: false }))).toBe(512.44)
     expect(odds(shinyRolls('egg', { ...none, charm: true, masuda: true }))).toBe(512.44)
+  })
+})
+
+describe('sync merge', () => {
+  const doc = (marks: Record<string, number>, team: string[] = [], teamAt = 0): ProgressDoc =>
+    ({ version: 2, marks, team, teamAt, boosts: { charm: false, sparkling: 0, outbreak: 0, masuda: false }, boostsAt: 0, updatedAt: 1 })
+  it('keeps the newest caught / un-caught change per Pokémon from either device', () => {
+    const phone = doc({ pikachu: 100, eevee: -300 }) // eevee un-marked later on the phone
+    const pc = doc({ eevee: 200, sprigatito: 150 })
+    const m = mergeProgress(phone, pc)
+    expect(m.marks).toEqual({ pikachu: 100, eevee: -300, sprigatito: 150 })
+    expect(mergeProgress(pc, phone).marks).toEqual(m.marks)
+  })
+  it('takes the team from whichever device changed it last', () => {
+    expect(mergeProgress(doc({}, ['a'], 5), doc({}, ['b', 'c'], 9)).team).toEqual(['b', 'c'])
   })
 })

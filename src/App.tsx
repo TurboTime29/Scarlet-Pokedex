@@ -1,10 +1,11 @@
 import { Suspense, lazy, type ComponentType } from 'react'
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useDb } from './data/db'
 import type { Db } from './data/types'
 import { ErrorBoundary, isStaleChunkError, reloadOnceForStaleChunk, rememberError } from './components/ErrorBoundary'
 import { Pokeball, ShinyButton } from './components/ui'
 import DexList from './pages/DexList'
+import { syncEnabled, useSync, useSyncStatus } from './lib/sync'
 
 /** lazy() that survives a deploy happening while the app is open: a missing chunk reloads the app once. */
 function L<T extends { default: ComponentType<{ db: Db }> }>(f: () => Promise<T>) {
@@ -18,6 +19,7 @@ function L<T extends { default: ComponentType<{ db: Db }> }>(f: () => Promise<T>
 const PokemonPage = L(() => import('./pages/PokemonPage'))
 const CountersPage = L(() => import('./pages/CountersPage'))
 const TeamPage = L(() => import('./pages/TeamPage'))
+const SettingsPage = L(() => import('./pages/SettingsPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 const TypeChartPage = L(() => import('./pages/TypeChartPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 
 const tabs = [
@@ -31,7 +33,9 @@ export default function App() {
   const { db, error } = useDb()
   const loc = useLocation()
   const nav = useNavigate()
-  const isDetail = loc.pathname.startsWith('/p/')
+  const isDetail = loc.pathname.startsWith('/p/') || loc.pathname === '/settings'
+  const session = useSync()
+  const sync = useSyncStatus()
 
   return (
     <div className="min-h-dvh">
@@ -44,6 +48,10 @@ export default function App() {
           )}
           <span className="flex-1" />
           <ShinyButton />
+          <Link to="/settings" aria-label="Settings and sync" title={session ? `Sync: ${sync.status}` : 'Settings & sync'} className="relative grid h-9 w-9 place-items-center rounded-full bg-white/15 text-lg">
+            {session ? '☁️' : '⚙️'}
+            {syncEnabled && session && <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ring-2 ring-scarlet-600 ${sync.status === 'error' ? 'bg-red-400' : sync.status === 'syncing' ? 'bg-amber-300' : 'bg-emerald-400'}`} />}
+          </Link>
         </div>
       </header>
 
@@ -65,6 +73,7 @@ export default function App() {
                 <Route path="/counters" element={<CountersPage db={db} />} />
                 <Route path="/team" element={<TeamPage db={db} />} />
                 <Route path="/types" element={<TypeChartPage db={db} />} />
+                <Route path="/settings" element={<SettingsPage db={db} />} />
                 <Route path="*" element={<DexList db={db} />} />
               </Routes>
             </Suspense>

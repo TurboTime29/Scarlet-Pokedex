@@ -5,7 +5,6 @@ import { summarizeTeam } from '../lib/team'
 import { TYPES, type Type } from '../lib/types'
 import { TEAM_SIZE, usePrefs } from '../store/prefs'
 import { Img, TypeBadge, Types, VersionBadge } from '../components/ui'
-import { BackupPanel } from '../components/BackupPanel'
 
 export default function TeamPage({ db }: { db: Db }) {
   const { team, caught, shiny, toggleTeam, moveTeam } = usePrefs()
@@ -91,7 +90,11 @@ export default function TeamPage({ db }: { db: Db }) {
         </section>
       )}
 
-      <BackupPanel />
+      <Link to="/settings" className="card flex items-center gap-2 p-3 text-sm">
+        <span className="text-lg">☁️</span>
+        <span className="flex-1"><b>Sync &amp; backup</b><span className="block text-xs muted">Sign in to keep your caught list and team on all your devices.</span></span>
+        <span className="muted">›</span>
+      </Link>
     </div>
   )
 }

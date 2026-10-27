@@ -10,6 +10,7 @@ import { Matchups } from '../components/Matchups'
 import { MoveTable } from '../components/MoveTable'
 import { Encounters } from '../components/Encounters'
 import { ShinyOdds } from '../components/ShinyOdds'
+import { EvolutionInfo } from '../components/EvolutionInfo'
 
 const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed']
 
@@ -90,16 +91,22 @@ export default function PokemonPage({ db }: { db: Db }) {
       {s.flavor && <p className="text-sm italic leading-relaxed muted">“{s.flavor}”</p>}
 
       <section>
+        <h2 className="section-title">Evolution</h2>
+        <EvolutionInfo db={db} s={s} f={f} />
+        {s.chain != null && db.evolutions[s.chain]?.to?.length ? (
+          <div className="mt-3">
+            <h3 className="mb-1.5 text-xs font-bold muted">Full evolution line</h3>
+            <EvolutionLine db={db} chain={s.chain} current={s.slug} currentForm={f} shiny={shiny} />
+          </div>
+        ) : null}
+      </section>
+
+      <section>
         <h2 className="section-title">Where to find it</h2>
         <Encounters db={db} s={s} f={f} />
       </section>
 
       <WorthRaising db={db} s={s} f={f} />
-
-      <section>
-        <h2 className="section-title">Evolution line</h2>
-        {s.chain != null ? <EvolutionLine db={db} chain={s.chain} current={s.slug} currentForm={f} shiny={shiny} /> : <p className="text-sm muted">Does not evolve.</p>}
-      </section>
 
       <section>
         <h2 className="section-title">Type matchups</h2>
