@@ -1,6 +1,7 @@
 import type { Db, Form, Species } from '../data/types'
 import { bst, isFinal } from '../data/db'
 import { bestStab, effectiveness, type Type } from './types'
+import { isDlcForm, isDlcSpecies } from './dlc'
 
 export interface Counter {
   species: Species
@@ -18,6 +19,8 @@ export interface CounterOptions {
   finalOnly?: boolean
   /** restrict to these species slugs (caught / team) */
   only?: Set<string>
+  /** leave out Pokémon and forms that need The Teal Mask / The Indigo Disk */
+  baseGameOnly?: boolean
 }
 
 /** Bucket for "how safely can it switch in": immune/resist, neutral, weak. */
@@ -32,11 +35,13 @@ export function findCounters(db: Db, opponent: Type[], opts: CounterOptions = {}
   const best = new Map<string, Counter>()
   for (const s of db.species) {
     if (opts.only && !opts.only.has(s.slug)) continue
-    const final = isFinal(db, s)
+    if (opts.baseGameOnly && isDlcSpecies(s)) continue
+    const final = isFinal(db, s, opts.baseGameOnly)
     if (opts.finalOnly && !final) continue
     for (const f of s.forms) {
       if (f.battleOnly) continue
       if (!opts.includeViolet && f.ver === 'violet') continue
+      if (opts.baseGameOnly && isDlcForm(s, f)) continue
       const hits = bestStab(f.types, opponent)
       if (hits < 2) continue
       const takes = Math.max(...opponent.map((t) => effectiveness(t, f.types)))

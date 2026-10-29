@@ -81,3 +81,8 @@ export function Img({ src, alt, className, size }: { src: string; alt: string; c
   if (failedSrc === src || !src) return <div className={`grid place-items-center opacity-30 ${className ?? ''}`} style={{ width: size, height: size }}><Pokeball size={(size ?? 48) / 2} on={false} /></div>
   return <img src={src} alt={alt} loading="lazy" decoding="async" width={size} height={size} className={className} onError={() => setFailedSrc(src)} />
 }
+
+/** Marks Pokémon / forms that need The Teal Mask or The Indigo Disk (shown only while the DLC setting is off). */
+export function DlcBadge({ title }: { title?: string }) {
+  return <span title={title ?? 'Needs the DLC (The Teal Mask / The Indigo Disk)'} className="inline-flex items-center rounded-full bg-teal-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white whitespace-nowrap">DLC</span>
+}

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { mainForm, thumb } from '../data/db'
 import type { Db, EvoNode, Form, Species } from '../data/types'
-import { Img } from './ui'
+import { DlcBadge, Img } from './ui'
+import { usePrefs } from '../store/prefs'
+import { dlcPart, isDlcSpecies } from '../lib/dlc'
 
 // Branches that only apply to one regional form of the species (the rest of the chain is shared).
 const FORM_ONLY: Record<string, string> = {
@@ -83,6 +85,7 @@ const lower = (s: string) => (/^Lv /.test(s) ? s : s.charAt(0).toLowerCase() + s
 const titleCase = (slug: string) => slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 
 function EvoStep({ db, node }: { db: Db; node: EvoNode }) {
+  const dlc = usePrefs((p) => p.dlc)
   const target = db.bySlug.get(node.s)
   const how = node.how ?? 'Special'
   const { icon, tip } = explain(how)
@@ -91,7 +94,7 @@ function EvoStep({ db, node }: { db: Db; node: EvoNode }) {
     <>
       {target && !node.x ? <Img src={thumb(mainForm(target), false)} alt="" size={48} className="h-12 w-12 shrink-0 object-contain" /> : <span className="grid h-12 w-12 shrink-0 place-items-center text-xl opacity-40">?</span>}
       <span className="min-w-0 flex-1">
-        <span className="block font-semibold">{target?.name ?? titleCase(node.s)}{missing && <span className="ml-1 text-[10px] font-normal muted">(not in Scarlet/Violet)</span>}</span>
+        <span className="block font-semibold">{target?.name ?? titleCase(node.s)}{missing && <span className="ml-1 text-[10px] font-normal muted">(not in Scarlet/Violet)</span>}{!missing && !dlc && target && isDlcSpecies(target) && <span className="ml-1.5 align-middle"><DlcBadge title={`Needs ${dlcPart(target)}`} /></span>}</span>
         <span className="mt-0.5 flex items-start gap-1.5 text-sm"><span aria-hidden>{icon}</span><span className="font-semibold text-scarlet-700 dark:text-scarlet-400">{how}</span></span>
         {tip && !missing && <span className="mt-0.5 block text-[11px] leading-snug muted">{tip}</span>}
       </span>

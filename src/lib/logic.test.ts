@@ -6,6 +6,7 @@ import { findCounters } from './counters'
 import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
+import { isDlcForm, isDlcSpecies } from './dlc'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -98,5 +99,28 @@ describe('sync merge', () => {
   })
   it('takes the team from whichever device changed it last', () => {
     expect(mergeProgress(doc({}, ['a'], 5), doc({}, ['b', 'c'], 9)).team).toEqual(['b', 'c'])
+  })
+})
+
+describe('DLC filter', () => {
+  const db = loadDb()
+  const form = (sp: string, slug: string) => { const s = db.bySlug.get(sp)!; return [s, s.forms.find((f) => f.slug === slug)!] as const }
+  it('treats Kitakami/Blueberry-only species and forms as DLC', () => {
+    expect(isDlcForm(...form('wooper', 'wooper-paldea'))).toBe(false)
+    expect(isDlcForm(...form('wooper', 'wooper'))).toBe(true)
+    expect(isDlcForm(...form('tauros', 'tauros-paldea-blaze-breed'))).toBe(false)
+    expect(isDlcForm(...form('tauros', 'tauros'))).toBe(true)
+    expect(isDlcForm(...form('diglett', 'diglett-alola'))).toBe(true)
+    expect(isDlcForm(...form('basculin', 'basculin-white-striped'))).toBe(true)
+    expect(isDlcForm(...form('basculin', 'basculin-blue-striped'))).toBe(false)
+    expect(isDlcSpecies(db.bySlug.get('ogerpon')!)).toBe(true)
+    expect(isDlcSpecies(db.bySlug.get('pikachu')!)).toBe(false)
+  })
+  it('keeps DLC Pokémon out of base-game counters', () => {
+    const slugs = (base: boolean) => findCounters(db, ['dragon'], { baseGameOnly: base }).map((c) => c.species.slug)
+    expect(slugs(false)).toContain('fezandipiti')
+    expect(slugs(true)).not.toContain('fezandipiti')
+    expect(slugs(true)).toContain('tinkaton')
+    expect(findCounters(db, ['dragon'], { baseGameOnly: true }).every((c) => !isDlcForm(c.species, c.form))).toBe(true)
   })
 })

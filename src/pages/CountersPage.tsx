@@ -13,7 +13,7 @@ const PAGE = 40
 export default function CountersPage({ db }: { db: Db }) {
   const [params, setParams] = useSearchParams()
   const picked = (params.get('t') ?? '').split(',').filter((t): t is Type => (TYPES as readonly string[]).includes(t)).slice(0, 2)
-  const { caught, team, shiny } = usePrefs()
+  const { caught, team, shiny, dlc } = usePrefs()
   const [includeViolet, setIncludeViolet] = useState(false)
   const [finalOnly, setFinalOnly] = useState(true)
   const [scope, setScope] = useState<'all' | 'caught' | 'team'>('all')
@@ -26,9 +26,10 @@ export default function CountersPage({ db }: { db: Db }) {
   }, [scope, caught, team, db])
 
   const results = useMemo(
-    () => findCounters(db, picked, { includeViolet, finalOnly: finalOnly && scope === 'all', only }),
+    // Pokémon you already own always count; "All Pokémon" sticks to what your copy of the game can catch.
+    () => findCounters(db, picked, { includeViolet, finalOnly: finalOnly && scope === 'all', only, baseGameOnly: !dlc && scope === 'all' }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [db, picked.join(), includeViolet, finalOnly, scope, only],
+    [db, picked.join(), includeViolet, finalOnly, scope, only, dlc],
   )
 
   const toggleType = (t: Type) => {
@@ -81,6 +82,7 @@ export default function CountersPage({ db }: { db: Db }) {
           <p className="text-sm">
             <span className="font-semibold">{results.length}</span> Pokémon hit <Types types={picked} size="sm" /> super-effectively.
             {picked.length === 2 && <span className="muted"> Opponent STAB checked for both types.</span>}
+            {!dlc && scope === 'all' && <span className="muted"> Base game only — <Link to="/settings" className="font-semibold text-scarlet-600">DLC Pokémon hidden</Link>.</span>}
           </p>
           {!results.length && (
             <p className="py-6 text-center text-sm muted">

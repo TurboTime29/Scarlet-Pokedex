@@ -48,12 +48,12 @@ export function mainForm(s: Species): Form {
 export const thumb = (f: Form, shiny: boolean) => `${base}thumbs/${f.pid}${shiny && f.artS ? 's' : ''}.webp`
 export const artwork = (f: Form, shiny: boolean) => (shiny ? f.artS ?? f.art : f.art) ?? f.spr ?? ''
 
-/** Fully evolved within Scarlet/Violet: no further evolution that exists in the game. */
-export function isFinal(db: Db, s: Species): boolean {
+/** Fully evolved within Scarlet/Violet (or the base game): no further evolution that exists in it. */
+export function isFinal(db: Db, s: Species, baseGameOnly = false): boolean {
   if (s.chain == null) return true
   const find = (n: EvoNode): EvoNode | null => n.s === s.slug ? n : (n.to ?? []).map(find).find(Boolean) ?? null
   const node = find(db.evolutions[s.chain])
-  return !node?.to?.some((k) => !k.x)
+  return !node?.to?.some((k) => !k.x && (!baseGameOnly || db.bySlug.get(k.s)?.dex.paldea != null))
 }
 
 export const bst = (f: Form) => f.stats.reduce((a, b) => a + b, 0)

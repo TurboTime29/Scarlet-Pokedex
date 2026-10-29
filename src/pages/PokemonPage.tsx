@@ -4,7 +4,8 @@ import { artwork, bst, formLabel, isFinal, mainForm, pad } from '../data/db'
 import { DEXES, type Db, type EvoNode, type Form, type Species } from '../data/types'
 import { TYPE_COLORS, type Type } from '../lib/types'
 import { TEAM_SIZE, usePrefs } from '../store/prefs'
-import { CaughtToggle, Img, Types, VersionBadge } from '../components/ui'
+import { CaughtToggle, DlcBadge, Img, Types, VersionBadge } from '../components/ui'
+import { dlcPart, isDlcForm } from '../lib/dlc'
 import { EvolutionLine } from '../components/EvolutionLine'
 import { Matchups } from '../components/Matchups'
 import { MoveTable } from '../components/MoveTable'
@@ -19,6 +20,7 @@ export default function PokemonPage({ db }: { db: Db }) {
   const nav = useNavigate()
   const s = db.bySlug.get(slug)
   const shiny = usePrefs((p) => p.shiny)
+  const dlc = usePrefs((p) => p.dlc)
   const setShiny = usePrefs((p) => p.setShiny)
   const team = usePrefs((p) => p.team)
   const toggleTeam = usePrefs((p) => p.toggleTeam)
@@ -31,7 +33,9 @@ export default function PokemonPage({ db }: { db: Db }) {
   const f = s.forms.find((x) => x.slug === formSlug) ?? mainForm(s)
   const color = TYPE_COLORS[f.types[0] as Type]
   const onTeam = team.includes(f.slug)
-  const selectable = s.forms.filter((x) => !x.battleOnly || x.slug === f.slug)
+  // without the DLC, its forms (Johto Wooper, Alolan Diglett…) stay out of the form chips
+  const selectable = s.forms.filter((x) => (!x.battleOnly && (dlc || !isDlcForm(s, x) || isDlcForm(s, f))) || x.slug === f.slug)
+  const needsDlc = !dlc && isDlcForm(s, f)
   const battleForms = s.forms.filter((x) => x.battleOnly)
 
   return (
@@ -75,6 +79,13 @@ export default function PokemonPage({ db }: { db: Db }) {
         </div>
         {toast && <p role="status" className="mt-2 rounded-lg bg-black/80 px-3 py-2 text-center text-xs text-white">{toast}</p>}
       </section>
+
+      {needsDlc && (
+        <div className="rounded-2xl border-2 border-teal-600 bg-teal-600/10 p-3">
+          <p className="flex items-center gap-1.5 font-bold text-teal-700 dark:text-teal-300"><DlcBadge /> Needs {dlcPart(s, f)}</p>
+          <p className="mt-0.5 text-sm">{s.name}{f.label && !f.default ? ` (${formLabel(f)})` : ''} isn’t in the base game — it’s only catchable with The Hidden Treasure of Area Zero DLC. <Link to="/settings" className="font-semibold underline">Got the DLC? Turn it on in Settings.</Link></p>
+        </div>
+      )}
 
       <AvailabilityBanner f={f} name={s.name} />
 

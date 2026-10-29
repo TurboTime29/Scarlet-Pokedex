@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useEncounters } from '../data/db'
+import { usePrefs } from '../store/prefs'
 import { DEXES, type Db, type DexId, type EvoNode, type FixedSpawn, type Form, type RaidSpawn, type Species, type WildSpawn } from '../data/types'
 
 const TIMES = ['morning', 'day', 'evening', 'night'] as const
@@ -41,6 +42,7 @@ function parentOf(db: Db, s: Species): Species | null {
 
 export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   const enc = useEncounters()
+  const dlc = usePrefs((p) => p.dlc)
   const [showAll, setShowAll] = useState<Record<string, boolean>>({})
   if (!enc) return <p className="text-sm muted">Loading locations…</p>
 
@@ -50,17 +52,20 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   const wildAll = mine(e.wild), fixedAll = mine(e.fixed), raidsAll = mine(e.raids)
   const violetOnlyForm = f.ver === 'violet'
   // For Scarlet players show Scarlet spawns; a Violet exclusive shows where Violet players find it instead.
-  const keep = (v: string) => (violetOnlyForm ? true : v !== 'violet')
-  const wild = wildAll.filter((w) => keep(w.v))
-  const fixed = fixedAll.filter((x) => keep(x.v))
-  const raids = raidsAll.filter((x) => keep(x.v))
-  const violetExtra = violetOnlyForm ? 0 : wildAll.length - wild.length
+  // Without the DLC, Kitakami and Blueberry spawns can't be reached.
+  const keep = (x: { v: string; r: DexId }) => (violetOnlyForm || x.v !== 'violet') && (dlc || x.r === 'paldea')
+  const wild = wildAll.filter(keep)
+  const fixed = fixedAll.filter(keep)
+  const raids = raidsAll.filter(keep)
+  const violetExtra = violetOnlyForm ? 0 : wildAll.filter((w) => w.v === 'violet' && (dlc || w.r === 'paldea')).length
+  const dlcExtra = dlc ? 0 : [...wildAll, ...fixedAll, ...raidsAll].filter((x) => x.r !== 'paldea').length
 
   if (!wild.length && !fixed.length && !raids.length) {
     const parent = parentOf(db, s)
     return (
       <div className="card p-3 text-sm">
-        <p className="font-semibold">Not found in the wild{violetOnlyForm ? '' : ' in Scarlet'}.</p>
+        <p className="font-semibold">Not found in the wild{violetOnlyForm ? '' : ' in Scarlet'}{!dlc ? ' without the DLC' : ''}.</p>
+        {dlcExtra > 0 && <p className="mt-0.5 text-xs text-violet-sv">It appears in {dlcExtra} DLC {dlcExtra === 1 ? 'spot' : 'spots'} (The Teal Mask / The Indigo Disk). <Link to="/settings" className="underline">Turn on the DLC</Link> to see them.</p>}
         {parent ? (
           <p className="mt-0.5 muted">Catch <Link className="font-semibold text-scarlet-600 underline" to={`/p/${parent.slug}`}>{parent.name}</Link> and evolve it.</p>
         ) : s.legend || s.paradox ? (
@@ -109,7 +114,7 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
 
       {wild.length > 0 && <p className="text-[11px] leading-snug muted">
         % = the share of wild spawns in that <b>biome</b> of the area that are this Pokémon, from the game’s spawn weights (via Bulbapedia).
-        Areas mix several biomes, so stand in the named one.{violetExtra > 0 ? ` ${violetExtra} more spawn ${violetExtra === 1 ? 'area is' : 'areas are'} Violet-only and hidden here.` : ''}
+        Areas mix several biomes, so stand in the named one.{violetExtra > 0 ? ` ${violetExtra} more spawn ${violetExtra === 1 ? 'area is' : 'areas are'} Violet-only and hidden here.` : ''}{dlcExtra > 0 ? ` ${dlcExtra} DLC ${dlcExtra === 1 ? 'spot is' : 'spots are'} hidden (DLC is off in Settings).` : ''}
       </p>}
     </div>
   )

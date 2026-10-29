@@ -17,6 +17,9 @@ export interface ProgressDoc {
   teamAt: number
   boosts: ShinyBoosts
   boostsAt: number
+  /** owns The Teal Mask + The Indigo Disk (optional: older documents don't have it) */
+  dlc?: boolean
+  dlcAt?: number
   updatedAt: number
 }
 
@@ -28,6 +31,7 @@ interface Prefs extends Omit<ProgressDoc, 'version'> {
   /** species slugs marked as caught (derived from marks) */
   caught: string[]
   setBoosts: (b: Partial<ShinyBoosts>) => void
+  setDlc: (v: boolean) => void
   setShiny: (v: boolean) => void
   setHideViolet: (v: boolean) => void
   setDex: (d: DexId) => void
@@ -59,8 +63,11 @@ export const usePrefs = create<Prefs>()(
         teamAt: 0,
         boosts: { charm: false, sparkling: 0, outbreak: 0, masuda: false },
         boostsAt: 0,
+        dlc: false,
+        dlcAt: 0,
         updatedAt: 0,
         setBoosts: (b) => set((s) => ({ boosts: { ...s.boosts, ...b }, boostsAt: now(), updatedAt: now() })),
+        setDlc: (dlc) => set((s) => ({ dlc, dlcAt: now(), updatedAt: now(), dex: dlc ? s.dex : 'paldea' })),
         setShiny: (shiny) => set({ shiny }),
         setHideViolet: (hideViolet) => set({ hideViolet }),
         setDex: (dex) => set({ dex }),
@@ -97,7 +104,8 @@ export const usePrefs = create<Prefs>()(
         },
         replaceProgress: (doc) => set({
           marks: doc.marks, caught: caughtOf(doc.marks), team: doc.team, teamAt: doc.teamAt,
-          boosts: doc.boosts, boostsAt: doc.boostsAt, updatedAt: doc.updatedAt,
+          boosts: doc.boosts, boostsAt: doc.boostsAt, dlc: doc.dlc ?? false, dlcAt: doc.dlcAt ?? 0, updatedAt: doc.updatedAt,
+          ...(doc.dlc ? {} : { dex: 'paldea' as const }),
         }),
       }
     },
@@ -106,7 +114,7 @@ export const usePrefs = create<Prefs>()(
       version: 2,
       partialize: (s) => ({
         shiny: s.shiny, hideViolet: s.hideViolet, dex: s.dex, filter: s.filter,
-        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, updatedAt: s.updatedAt,
+        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, updatedAt: s.updatedAt,
       }),
       // v1 stored a plain caught list: give those marks an old timestamp so any cloud change wins over them
       migrate: (old, version) => {
@@ -127,11 +135,11 @@ export const usePrefs = create<Prefs>()(
 )
 
 export function exportProgress(s: Omit<ProgressDoc, 'version'>): ProgressDoc {
-  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, updatedAt: s.updatedAt }
+  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc ?? false, dlcAt: s.dlcAt ?? 0, updatedAt: s.updatedAt }
 }
 
 export function isEmptyProgress(d: ProgressDoc): boolean {
-  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0
+  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0 && !d.dlcAt
 }
 
 /** Merge two devices: per-Pokémon newest caught/un-caught wins; team and shiny settings come from whichever changed last. */
@@ -140,8 +148,10 @@ export function mergeProgress(a: ProgressDoc, b: ProgressDoc): ProgressDoc {
   for (const [k, v] of Object.entries(b.marks)) if (!(k in marks) || Math.abs(v) > Math.abs(marks[k])) marks[k] = v
   const team = a.teamAt >= b.teamAt ? a : b
   const boosts = a.boostsAt >= b.boostsAt ? a : b
+  const dlc = (a.dlcAt ?? 0) >= (b.dlcAt ?? 0) ? a : b
   return {
     version: 2, marks, team: team.team, teamAt: team.teamAt, boosts: boosts.boosts, boostsAt: boosts.boostsAt,
+    dlc: dlc.dlc ?? false, dlcAt: dlc.dlcAt ?? 0,
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   }
 }

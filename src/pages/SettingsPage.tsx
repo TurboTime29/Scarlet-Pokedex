@@ -30,6 +30,8 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <h1 className="font-display text-2xl font-extrabold">Settings</h1>
 
+      <DlcSetting />
+
       <section className="card p-3">
         <h2 className="font-display text-base font-bold">☁️ Cloud sync</h2>
         <p className="mt-0.5 text-xs muted">Sign in to keep your caught list, team and shiny settings in sync on every device. Same account as FireRed Companion and Quit — your passkey from those works here.</p>
@@ -123,5 +125,35 @@ function PasskeyManager() {
       {keys && keys.length > 0 && <p className="mt-1 text-xs muted">You already have a passkey (shared with FireRed and Quit), so next time just tap “Sign in with passkey”. Only add another if this device can’t see it.</p>}
       {msg && <p className="mt-1 text-xs">{msg}</p>}
     </div>
+  )
+}
+
+function DlcSetting() {
+  const dlc = usePrefs((s) => s.dlc)
+  const setDlc = usePrefs((s) => s.setDlc)
+  return (
+    <section className="card p-3">
+      <label className="flex cursor-pointer items-start gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-base font-bold">🎮 I have the DLC</span>
+          <span className="mt-0.5 block text-xs muted">
+            The Hidden Treasure of Area Zero: The Teal Mask (Kitakami) and The Indigo Disk (Blueberry Academy).
+            {dlc
+              ? ' Showing all three Pokédexes, DLC Pokémon in Beat a type, and DLC spawn spots.'
+              : ' Off: only the Paldea Pokédex is shown, Beat a type only suggests Pokémon you can catch in the base game, and DLC Pokémon are marked with a DLC tag.'}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          className="peer sr-only"
+          checked={dlc}
+          onChange={(e) => setDlc(e.target.checked)}
+        />
+        <span aria-hidden className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors ${dlc ? 'bg-teal-600' : 'bg-stone-400/50'} peer-focus-visible:ring-2 peer-focus-visible:ring-scarlet-500`}>
+          <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${dlc ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+        </span>
+      </label>
+    </section>
   )
 }

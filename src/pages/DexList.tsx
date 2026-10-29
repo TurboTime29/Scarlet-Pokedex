@@ -18,7 +18,10 @@ const FILTERS: { id: CaughtFilter; label: string }[] = [
 ]
 
 export default function DexList({ db }: { db: Db }) {
-  const { dex, setDex, filter, setFilter, hideViolet, setHideViolet, shiny, caught, team } = usePrefs()
+  const { dex: savedDex, setDex, filter, setFilter, hideViolet, setHideViolet, shiny, caught, team, dlc } = usePrefs()
+  // without the DLC only the Paldea dex exists
+  const dex: DexId = dlc ? savedDex : 'paldea'
+  const dexes = dlc ? DEXES : DEXES.filter((d) => d.id === 'paldea')
   const q = useListState((s) => s.q)
   const caughtSet = useMemo(() => new Set(caught), [caught])
   const teamSpecies = useMemo(() => new Set(team.map((f) => db.formBySlug.get(f)?.species.slug)), [team, db])
@@ -35,10 +38,10 @@ export default function DexList({ db }: { db: Db }) {
 
   const elsewhere = useMemo(() => {
     if (!q.trim() || shown.length) return []
-    return DEXES.filter((d) => d.id !== dex).map((d) => ({
+    return dexes.filter((d) => d.id !== dex).map((d) => ({
       ...d, n: searchSpecies(db.species, db.dexes[d.id].map((s) => db.bySlug.get(s)!), q, d.id, (s) => dexForm(s, d.id).types).length,
     })).filter((d) => d.n)
-  }, [q, shown.length, dex, db])
+  }, [q, shown.length, dex, db, dexes])
 
   const caughtInDex = inDex.filter((s) => caughtSet.has(s.slug)).length
 
@@ -53,7 +56,13 @@ export default function DexList({ db }: { db: Db }) {
   return (
     <div>
       <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-10 -mx-4 space-y-2 px-4 pb-2 pt-2" style={{ background: 'var(--bg)' }}>
-        <div className="seg" role="tablist">
+        {!dlc && (
+          <div className="flex items-baseline justify-between gap-2 px-0.5">
+            <span className="font-display text-base font-bold">Paldea Pokédex <span className="text-xs font-normal muted">{caughtInDex}/{inDex.length}</span></span>
+            <Link to="/settings" className="text-[11px] font-semibold text-scarlet-600">DLC Pokémon hidden · change</Link>
+          </div>
+        )}
+        {dlc && <div className="seg" role="tablist">
           {DEXES.map((d) => {
             const total = db.dexes[d.id].length
             const got = db.dexes[d.id].filter((s) => caughtSet.has(s)).length
@@ -63,7 +72,7 @@ export default function DexList({ db }: { db: Db }) {
               </button>
             )
           })}
-        </div>
+        </div>}
         <div className="relative">
           <input
             className="input pl-9"

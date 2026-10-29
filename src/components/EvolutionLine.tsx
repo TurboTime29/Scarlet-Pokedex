@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { mainForm, thumb } from '../data/db'
 import type { Db, EvoNode, Form } from '../data/types'
-import { Img, Types } from './ui'
+import { DlcBadge, Img, Types } from './ui'
+import { usePrefs } from '../store/prefs'
+import { isDlcSpecies } from '../lib/dlc'
 
 interface Stage { node: EvoNode; parent?: string }
 
@@ -58,6 +60,7 @@ export function EvolutionLine({ db, chain, current, currentForm, shiny }: { db: 
 function EvoCard({ db, node, current, currentForm, shiny, wide }: {
   db: Db; node: EvoNode; parent?: string; current: string; currentForm: Form; shiny: boolean; wide?: boolean
 }) {
+  const dlc = usePrefs((p) => p.dlc)
   const s = db.bySlug.get(node.s)
   const isCurrent = node.s === current
   const how = node.how && (
@@ -83,7 +86,7 @@ function EvoCard({ db, node, current, currentForm, shiny, wide }: {
       <Img src={thumb(f, shiny)} alt="" size={48} className="h-12 w-12 shrink-0 object-contain" />
       <span className="min-w-0">
         {how}
-        <span className="block truncate text-sm font-semibold">{s.name}</span>
+        <span className="flex items-center gap-1"><span className="truncate text-sm font-semibold">{s.name}</span>{!dlc && isDlcSpecies(s) && <DlcBadge />}</span>
         <Types types={f.types} size="sm" />
       </span>
     </Link>
