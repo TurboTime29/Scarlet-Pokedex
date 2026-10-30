@@ -100,6 +100,26 @@ export default function LocationPage({ db }: { db: Db }) {
         </section>
       )}
 
+      {(place?.specials ?? []).filter((sp) => dlc || sp.x.r === 'paldea').length > 0 && (
+        <section>
+          <h2 className="section-title">⭐ Special encounters here</h2>
+          <ul className="card divide-y text-sm" style={{ borderColor: 'var(--ring)' }}>
+            {place!.specials.filter((sp) => dlc || sp.x.r === 'paldea').map((sp, i) => (
+              <li key={i} style={{ borderColor: 'var(--ring)' }}>
+                <Link to={`/p/${sp.species.slug}${sp.form.default ? '' : `/${sp.form.slug}`}`} className="flex items-center gap-2 px-3 py-1.5">
+                  <Img src={thumb(sp.form, shiny)} alt="" size={40} className="h-10 w-10 shrink-0 object-contain" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{sp.species.name}</span>
+                    <span className="block text-[11px] muted">{sp.x.group}{sp.x.lv ? ` · Lv ${sp.x.lv}` : ''} — tap for how to get it</span>
+                  </span>
+                  <span className="muted">›</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {shopHere.length > 0 && <ItemList title="🛒 Sold here" items={shopHere} />}
       {fieldHere.length > 0 && <ItemList title="✨ Items found here" items={fieldHere} />}
       {!place && !itemsHere.length && <p className="py-10 text-center text-sm muted">No data for this place.</p>}

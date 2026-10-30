@@ -126,6 +126,89 @@ def biome_names() -> dict[str, str]:
     return {m.group(1): m.group(2) for m in re.finditer(r"\|(\w+)=style.*?\{\{color2\|\w+\|Biome\|([^}]+)\}\}", t)}
 
 
+# ---------------------------------------------------------------- special (one-time) encounters
+
+EVENT_PAGE = "List of in-game event Pokémon in Pokémon Scarlet and Violet"
+PART_REGION = {"Base game": "paldea", "The Teal Mask": "kitakami", "The Indigo Disk": "blueberry", "Mochi Mayhem": "kitakami"}
+# Exact steps for the treasures of ruin, from Bulbapedia's shrine pages (Grasswither/Icerend/Groundblight/Firescourge Shrine).
+SHRINE_STEPS = {
+    "wo-chien": ("Grasswither Shrine", "South Province (Area One)", "purple"),
+    "chien-pao": ("Icerend Shrine", "West Province (Area One)", "yellow"),
+    "ting-lu": ("Groundblight Shrine", "Socarrat Trail", "green"),
+    "chi-yu": ("Firescourge Shrine", "North Province (Area Two)", "light-blue"),
+}
+
+
+def prose(block: str) -> str:
+    """Wiki paragraphs under a heading as plain text (templates, files and tables dropped)."""
+    block = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", "", block, flags=re.S)
+    # inline link templates ({{p|Koraidon}}, {{m|Icy Wind}}, {{color2|000|Text}}) keep their display text
+    for _ in range(3):
+        block = re.sub(r"\{\{(?!SVievent)[^{}|\n]+\|([^{}\n]*?)\}\}", lambda m: m.group(1).split("|")[-1], block)
+    while True:  # drop the remaining (block) templates from the inside out
+        nb = re.sub(r"\{\{[^{}]*\}\}", "", block)
+        if nb == block:
+            break
+        block = nb
+    block = re.sub(r"\[\[File:[^\]]*\]\]", "", block)
+    lines = [ln for ln in block.split("\n") if ln.strip() and not ln.lstrip().startswith(("{", "|", "!", "<", "[[Category"))]
+    text = re.sub(r"\s+", " ", strip_markup(" ".join(lines))).strip()
+    # version-split wording: "KoraidonS/MiraidonV" -> "Koraidon (Scarlet) / Miraidon (Violet)"
+    text = re.sub(r"(\w[\w.'’]*)S/(\w[\w.'’ ]*?)V\b", r"\1 (Scarlet) / \2 (Violet)", text)
+    return text
+
+
+def met_place(met: str) -> str:
+    """{{color2|000|Socarrat Trail}} -> Socarrat Trail; version-split values keep both names."""
+    names = re.findall(r"\{\{color2\|[^|}]*\|([^}]*)\}\}", met)
+    return " / ".join(dict.fromkeys(strip_markup(n) for n in names)) if names else strip_markup(met)
+
+
+def special_encounters(resolve) -> dict[str, list[dict]]:
+    text = wikitext(EVENT_PAGE)
+    out: dict[str, list[dict]] = {}
+    part, group, group_text = "Base game", None, ""
+    heads = list(re.finditer(r"\n(==+)[ \t]*(.*?)[ \t]*\1[ \t]*(?=\n)", text))
+    for i, h in enumerate(heads):
+        level, name = len(h.group(1)), strip_markup(h.group(2))
+        body = text[h.end(): heads[i + 1].start() if i + 1 < len(heads) else len(text)]
+        if level == 2:
+            part, group, group_text = name, None, prose(body.split("{{SVievent")[0])
+        elif level == 3:
+            group, group_text = name, prose(body.split("{{SVievent")[0])
+        note = prose(body.split("{{SVievent")[0]) if level == 4 else ""
+        for _, args in templates(body, "SVievent"):
+            _, named = split_args(args)
+            if "ndex" not in named:
+                continue
+            slug, form = resolve(named["ndex"], named.get("form"))
+            if not slug:
+                continue
+            if (named.get("form") or "-" in named["ndex"]) and form is None:
+                continue  # a regional form that isn't in Scarlet/Violet's dexes (e.g. Hisuian Growlithe)
+            steps = [t for t in (group_text if level >= 3 else "", note) if len(t) > 30]
+            if slug in SHRINE_STEPS:
+                shrine, loc, colour = SHRINE_STEPS[slug]
+                steps = [
+                    f"Go to the {shrine} in {loc} — a small cave sealed by a {colour} door with four chains.",
+                    f"Find and pull out the eight {colour} stakes around the area (they glow with a dark aura). Each one removes part of the seal.",
+                    f"Once all eight are pulled, go back to the shrine: the door opens and {named.get('pokemon', slug)} is inside. Save before you battle it — if it's defeated it retreats and comes back later, and it can't be shiny.",
+                ] + steps
+            rec = {
+                "group": group or name, "part": part, "r": PART_REGION.get(part, "paldea"),
+                "loc": met_place(named.get("met", "")), "lv": named.get("level", ""),
+                "steps": list(dict.fromkeys(steps)),
+            }
+            if named.get("game") in ("s", "v"):
+                rec["v"] = "scarlet" if named["game"] == "s" else "violet"
+            if form:
+                rec["f"] = form
+            lst = out.setdefault(slug, [])
+            if not any(x["loc"] == rec["loc"] and x["group"] == rec["group"] for x in lst):
+                lst.append(rec)
+    return out
+
+
 def main() -> None:
     species = json.loads((OUT / "pokemon.json").read_text(encoding="utf-8"))
     by_id = {s["id"]: s for s in species}
@@ -259,7 +342,10 @@ def main() -> None:
                 if rec not in raids:
                     raids.append(rec)
 
+    for slug, specials in special_encounters(resolve).items():
+        bucket(slug)["special"] = specials
     for e in out.values():
+        e.setdefault("special", [])
         e["wild"].sort(key=lambda r: -max(r["p"]))
         e["raids"].sort(key=lambda r: (r["s"], r["r"]))
     path = OUT / "encounters.json"

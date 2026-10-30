@@ -102,7 +102,9 @@ export interface WildSpawn {
 
 export interface FixedSpawn { loc: string; r: DexId; where: string; lv: string; v: Avail; f?: string; note?: string }
 export interface RaidSpawn { r: DexId; s: number; lv: string; v: Avail; f?: string }
-export interface Encounters { wild: WildSpawn[]; fixed: FixedSpawn[]; raids: RaidSpawn[] }
+/** One-time story / special encounter (treasures of ruin, Titans, gifts, Loyal Three…) with how-to steps. */
+export interface SpecialSpawn { group: string; part: string; r: DexId; loc: string; lv: string; steps: string[]; v?: 'scarlet' | 'violet'; f?: string }
+export interface Encounters { wild: WildSpawn[]; fixed: FixedSpawn[]; raids: RaidSpawn[]; special?: SpecialSpawn[] }
 
 export interface ItemPlace { n: string; r: DexId }
 /** One way to get an item: "Found" (field), "Shop", "Raid Battles", ... */

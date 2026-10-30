@@ -1,11 +1,12 @@
 import { placeKey } from '../data/db'
-import type { Db, DexId, Encounters, FixedSpawn, Form, Species, WildSpawn } from '../data/types'
+import type { Db, DexId, Encounters, FixedSpawn, Form, SpecialSpawn, Species, WildSpawn } from '../data/types'
 
 export interface WildRow { species: Species; form: Form; w: WildSpawn }
 export interface FixedRow { species: Species; form: Form; x: FixedSpawn }
 export interface Biome { name: string; rows: WildRow[] }
 export interface SubArea { name: string | null; biomes: Biome[] }
-export interface Place { key: string; name: string; r: DexId; subs: SubArea[]; fixed: FixedRow[] }
+export interface SpecialRow { species: Species; form: Form; x: SpecialSpawn }
+export interface Place { key: string; name: string; r: DexId; subs: SubArea[]; fixed: FixedRow[]; specials: SpecialRow[] }
 
 function formFor(s: Species, x: { f?: string; r: DexId }): Form {
   const slug = x.f ?? s.dexForm[x.r]
@@ -30,7 +31,7 @@ export function buildPlaces(db: Db, enc: Record<string, Encounters>): Place[] {
   const place = (loc: string, r: DexId) => {
     const key = placeKey(loc)
     let p = byKey.get(key)
-    if (!p) { p = { key, name: loc, r, subs: [], fixed: [] }; byKey.set(key, p) }
+    if (!p) { p = { key, name: loc, r, subs: [], fixed: [], specials: [] }; byKey.set(key, p) }
     return p
   }
   for (const [slug, e] of Object.entries(enc)) {
@@ -46,6 +47,7 @@ export function buildPlaces(db: Db, enc: Record<string, Encounters>): Place[] {
       biome.rows.push({ species: s, form: formFor(s, w), w })
     }
     for (const x of e.fixed) place(x.loc, x.r).fixed.push({ species: s, form: formFor(s, x), x })
+    for (const x of e.special ?? []) for (const loc of x.loc.split(' / ')) if (loc) place(loc, x.r).specials.push({ species: s, form: formFor(s, x), x })
   }
   const places = [...byKey.values()].sort((a, b) => order(a.name).localeCompare(order(b.name)))
   for (const p of places) {

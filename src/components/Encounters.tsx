@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useEncounters } from '../data/db'
+import { placeKey, useEncounters } from '../data/db'
+import { isDlcSpecies } from '../lib/dlc'
+import { DlcBadge } from './ui'
 import { usePrefs } from '../store/prefs'
-import { DEXES, type Db, type DexId, type EvoNode, type FixedSpawn, type Form, type RaidSpawn, type Species, type WildSpawn } from '../data/types'
+import { DEXES, type Db, type DexId, type EvoNode, type FixedSpawn, type Form, type RaidSpawn, type SpecialSpawn, type Species, type WildSpawn } from '../data/types'
 
 const TIMES = ['morning', 'day', 'evening', 'night'] as const
 export const TIME_ICON = ['🌅', '☀️', '🌇', '🌙'] as const
@@ -97,12 +99,23 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   const raids = raidsAll.filter(keep)
   const violetExtra = violetOnlyForm ? 0 : wildAll.filter((w) => w.v === 'violet' && (dlc || w.r === 'paldea')).length
   const dlcExtra = dlc ? 0 : [...wildAll, ...fixedAll, ...raidsAll].filter((x) => x.r !== 'paldea').length
+  // one-time encounters: on a base-game Pokémon, DLC ones stay hidden while the DLC is off
+  const specials = (e.special ?? []).filter((x) => (!x.f || x.f === target) && (dlc || x.r === 'paldea' || isDlcSpecies(s)) && (violetOnlyForm || x.v !== 'violet'))
+
+  if (!wild.length && !fixed.length && !raids.length && specials.length) {
+    return (
+      <div className="space-y-2">
+        <p className="rounded-2xl bg-amber-500/15 p-3 text-sm font-semibold text-amber-800 dark:text-amber-200">⭐ Special encounter — it doesn’t spawn in the wild. You get it once, like this:</p>
+        {specials.map((x, i) => <SpecialCard key={i} x={x} dlcOn={dlc} />)}
+      </div>
+    )
+  }
 
   if (!wild.length && !fixed.length && !raids.length) {
     const parent = parentOf(db, s)
     return (
       <div className="card p-3 text-sm">
-        <p className="font-semibold">Not found in the wild{violetOnlyForm ? '' : ' in Scarlet'}{!dlc ? ' without the DLC' : ''}.</p>
+        <p className="font-semibold">{dlcExtra > 0 ? 'Only found in the DLC.' : `Not found in the wild${violetOnlyForm ? '' : ' in Scarlet'}.`}</p>
         {dlcExtra > 0 && <p className="mt-0.5 text-xs text-violet-sv">It appears in {dlcExtra} DLC {dlcExtra === 1 ? 'spot' : 'spots'} (The Teal Mask / The Indigo Disk). <Link to="/settings" className="underline">Turn on the DLC</Link> to see them.</p>}
         {parent ? (
           <p className="mt-0.5 muted">Catch <Link className="font-semibold text-scarlet-600 underline" to={`/p/${parent.slug}`}>{parent.name}</Link> and evolve it.</p>
@@ -158,6 +171,12 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
       })}
 
       {fixed.length > 0 && <FixedList fixed={fixed} />}
+      {specials.length > 0 && (
+        <section>
+          <h3 className="mb-1 text-xs font-bold muted">⭐ Special encounter</h3>
+          <div className="space-y-2">{specials.map((x, i) => <SpecialCard key={i} x={x} dlcOn={dlc} />)}</div>
+        </section>
+      )}
       {raids.length > 0 && <RaidList raids={raids} />}
 
       {wild.length > 0 && <p className="text-[11px] leading-snug muted">
@@ -246,5 +265,27 @@ export function TimeStrip({ p, compact }: { p: WildSpawn['p']; compact?: boolean
         </span>
       ))}
     </span>
+  )
+}
+
+/** A one-time encounter with numbered steps. */
+function SpecialCard({ x, dlcOn }: { x: SpecialSpawn; dlcOn: boolean }) {
+  return (
+    <div className="card p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="font-bold">{x.group}</span>
+        {x.r !== 'paldea' && <span className={dlcOn ? '' : 'opacity-90'}><DlcBadge title={x.part} /></span>}
+        {x.v && <span className={`text-[10px] font-bold ${x.v === 'scarlet' ? 'text-scarlet-600' : 'text-violet-sv'}`}>{x.v === 'scarlet' ? 'Scarlet' : 'Violet'}</span>}
+      </div>
+      <p className="mt-0.5 text-xs muted">
+        📍 {x.loc.split(' / ').map((l, i) => <span key={l}>{i > 0 && ' / '}<Link to={`/map/${placeKey(l)}`} className="underline decoration-dotted">{l}</Link></span>)}
+        {x.lv ? ` · Lv ${x.lv}` : ''}{x.r !== 'paldea' ? ` · ${x.part}` : ''}
+      </p>
+      {x.steps.length > 0 && (
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug">
+          {x.steps.map((st, i) => <li key={i}>{st}</li>)}
+        </ol>
+      )}
+    </div>
   )
 }
