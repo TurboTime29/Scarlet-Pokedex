@@ -93,6 +93,27 @@ def region_of(loc: str) -> str:
     return "kitakami" if loc in KITAKAMI else "blueberry" if loc in BLUEBERRY else "paldea"
 
 
+def clean_note(s: str) -> str:
+    """Spawn notes as plain sentences: no wiki markup, citation links or <ref>s."""
+    s = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", "", s, flags=re.S)
+    s = re.sub(r"https?://\S+", "", strip_markup(s)).replace("&nbsp;", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    s = s.replace("This Pokémon that only", "This Pokémon only").replace("can only spawns", "can only spawn").replace("can changed", "can be changed")
+    return s if s.endswith((".", "!", ")")) else s + "."
+
+
+def page_notes(text: str) -> dict[str, str]:
+    """notename -> text: a note is written out once on the page and later entries refer to it by name."""
+    notes = {}
+    for _, args in templates(text, "Catch/entry9"):
+        _, named = split_args(args)
+        if named.get("notename") and named.get("note"):
+            notes.setdefault(named["notename"], named["note"])
+    for m in re.finditer(r'<ref name="?([^">/]+?)"?(?: group="?note"?)?\s*>(.*?)</ref>', text, flags=re.S):
+        notes.setdefault(m.group(1).strip(), m.group(2))
+    return notes
+
+
 def strip_markup(s: str) -> str:
     s = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]*)\]\]", r"\1", s)
     s = re.sub(r"\{\{[^{}|]*\|([^{}|]*)(?:\|[^{}]*)?\}\}", r"\1", s)
@@ -137,6 +158,7 @@ def main() -> None:
     token = re.compile(r"\{\{Catch/div/9\|([^}|]+)\}\}|\n(==+)\s*([^=\n]+?)\s*==+|\{\{Catch/entry9\s*\|")
     for title in pages:
         text = wikitext(title)
+        notes = page_notes(text)
         # Walk the page in order. Big areas (Area Zero, the Terarium biomes) split into sub-areas with "===X==="
         # headings, each with its own table; inside a table {{Catch/div/9|code}} starts a biome.
         groups: dict[tuple[str | None, str], list[dict]] = {}
@@ -164,6 +186,8 @@ def main() -> None:
             groups.setdefault((sub, biome), []).append({
                 "ndex": ndex, "name": name, "form": named.get("form"), "S": sc == "yes", "V": vi == "yes",
                 "lv": strip_markup(lv), "w": weights, "group": named.get("group"),
+                "note": named.get("note") or notes.get(named.get("notename", ""), ""),
+                "ls": strip_markup(named.get("levelscaled", "")),
                 "water": named.get("watersurface") == "yes" or named.get("underwater") == "yes",
                 "land": named.get("land") == "yes", "sky": named.get("sky") == "yes" or named.get("overland") == "yes"})
         for (sub, biome), entries in groups.items():
@@ -184,6 +208,10 @@ def main() -> None:
                     rec["f"] = form
                 if e["group"]:
                     rec["g"] = int(re.sub(r"\D", "", e["group"]) or 0)
+                if e["note"]:
+                    rec["n"] = clean_note(e["note"])
+                if e["ls"]:
+                    rec["ls"] = e["ls"]
                 how = [k for k in ("land", "water", "sky") if e[k]]
                 if how and how != ["land"]:
                     rec["on"] = how

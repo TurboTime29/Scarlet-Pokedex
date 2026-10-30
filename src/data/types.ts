@@ -94,6 +94,10 @@ export interface WildSpawn {
   /** % chance it appears in a group */
   g?: number
   on?: ('land' | 'water' | 'sky')[]
+  /** condition or spot note, e.g. "only after beating the main story", "only spawns in trees" */
+  n?: string
+  /** higher level range later on (Kitakami levels rise as the DLC story goes on) */
+  ls?: string
 }
 
 export interface FixedSpawn { loc: string; r: DexId; where: string; lv: string; v: Avail; f?: string; note?: string }

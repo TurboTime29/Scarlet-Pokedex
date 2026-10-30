@@ -5,6 +5,9 @@ import { usePrefs } from '../store/prefs'
 import { DEXES, type Db, type DexId, type EvoNode, type FixedSpawn, type Form, type RaidSpawn, type Species, type WildSpawn } from '../data/types'
 
 const TIMES = ['morning', 'day', 'evening', 'night'] as const
+const TIME_ICON = ['🌅', '☀️', '🌇', '🌙'] as const
+const TIME_LABEL = ['Morning', 'Day', 'Evening', 'Night'] as const
+const TIME_SHORT = ['Morn', 'Day', 'Eve', 'Night'] as const
 const PREVIEW = 5
 
 /** Which form an encounter row is: explicit, else the form that region's dex shows. */
@@ -21,6 +24,41 @@ function timeNote(p: WildSpawn['p']): string | null {
   }
   if (on.length === 3) return `not at ${TIMES.find((_, i) => p[i] === 0)}`
   return `${on.join(' & ')} only`
+}
+
+const TIME_PHRASE = ['in the morning', 'during the day', 'in the evening', 'at night'] as const
+
+/** "in the evening and at night" / "in the morning or during the day" */
+function joinTimes(ix: number[], conj: 'and' | 'or' = 'and'): string {
+  const names = ix.map((i) => TIME_PHRASE[i])
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} ${conj} ${names[names.length - 1]}`
+}
+
+/** Worth showing per-time odds: it never spawns at some time, or one time is clearly better. */
+const timeMatters = (p: WildSpawn['p']) => p.some((v) => v === 0) || Math.max(...p) >= Math.min(...p) * 1.3
+
+/** When the Pokémon can be found, across all its spawns shown here. */
+function whenToLook(wild: WildSpawn[]): { tone: 'warn' | 'info' | 'plain'; text: string } | null {
+  if (!wild.length) return null
+  const best = [0, 1, 2, 3].map((t) => Math.max(...wild.map((w) => w.p[t])))
+  const on = [0, 1, 2, 3].filter((t) => best[t] > 0)
+  const off = [0, 1, 2, 3].filter((t) => best[t] === 0)
+  if (off.length) {
+    return { tone: 'warn', text: `${on.map((t) => TIME_ICON[t]).join('')} Only appears ${joinTimes(on)} — it won’t spawn ${joinTimes(off, 'or')}.` }
+  }
+  const top = best.indexOf(Math.max(...best)), low = Math.min(...best)
+  if (best[top] >= low * 1.5) return { tone: 'info', text: `${TIME_ICON[top]} Easiest to find ${joinTimes([top])} (up to ${best[top]}% vs ${low}% at its rarest time).` }
+  return { tone: 'plain', text: '🕒 Spawns at any time of day.' }
+}
+
+/** Icon for a spawn note by what kind of condition it is. */
+function noteIcon(n: string): string {
+  if (/main story|titan|league club|diversity|after /i.test(n)) return '🔓'
+  if (/tree/i.test(n)) return '🌳'
+  if (/disguise/i.test(n)) return '🎭'
+  if (/postcard|pokémon go/i.test(n)) return '✉️'
+  if (/only (spawns|appears|be found|spawn)|peak|eastern|western|southern|northern|entrance|cave/i.test(n)) return '📍'
+  return 'ℹ️'
 }
 
 function rarity(pct: number) {
@@ -78,16 +116,26 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   }
 
   const best = wild[0]
+  const when = whenToLook(wild)
+  // a condition every spawn shares (e.g. "only after beating the main story") goes in the summary
+  const sharedNote = wild.length > 0 && wild.every((w) => w.n && w.n === wild[0].n) ? wild[0].n! : null
   const byRegion = DEXES.map((d) => ({ ...d, rows: wild.filter((w) => w.r === d.id).sort((a, b) => Math.max(...b.p) - Math.max(...a.p)) })).filter((g) => g.rows.length)
 
   return (
     <div className="space-y-3">
       {violetOnlyForm && <p className="text-xs font-semibold text-violet-sv">These spawns are in Pokémon Violet only — useful if you’re trading with a Violet player.</p>}
+      {when && (
+        <div className={`rounded-2xl p-3 text-sm font-semibold ${when.tone === 'warn' ? 'border-2 border-indigo-500 bg-indigo-500/10 text-indigo-800 dark:text-indigo-200' : when.tone === 'info' ? 'bg-indigo-500/10' : 'surface-2'}`}>
+          {when.text}
+          {sharedNote && <span className="mt-1 block font-normal">{noteIcon(sharedNote)} {sharedNote}</span>}
+        </div>
+      )}
       {best && (
         <div className="rounded-2xl bg-emerald-500/10 p-3 text-sm">
           <span className="font-bold text-emerald-700 dark:text-emerald-300">Best odds:</span>{' '}
           <b>{Math.max(...best.p)}%</b> of {best.b.toLowerCase()} spawns in <b>{place(best)}</b> (Lv {best.lv})
           {timeNote(best.p) ? `, ${timeNote(best.p)}` : ''}.
+          {best.n && best.n !== sharedNote && <span className="mt-1 block text-xs">{noteIcon(best.n)} {best.n}</span>}
         </div>
       )}
 
@@ -98,7 +146,7 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
           <section key={g.id}>
             <h3 className="mb-1 text-xs font-bold muted">{g.label} · {g.rows.length} spawn {g.rows.length === 1 ? 'area' : 'areas'}</h3>
             <ul className="card divide-y overflow-hidden" style={{ borderColor: 'var(--ring)' }}>
-              {rows.map((w, i) => <WildRow key={i} w={w} />)}
+              {rows.map((w, i) => <WildRow key={i} w={w} hideNote={w.n === sharedNote} />)}
             </ul>
             {g.rows.length > PREVIEW && (
               <button className="mt-1 text-xs font-semibold text-scarlet-600" onClick={() => setShowAll({ ...showAll, [g.id]: !all })}>
@@ -120,23 +168,25 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   )
 }
 
-function WildRow({ w }: { w: WildSpawn }) {
+function WildRow({ w, hideNote }: { w: WildSpawn; hideNote?: boolean }) {
   const pct = Math.max(...w.p)
   const r = rarity(pct)
-  const note = timeNote(w.p)
+  const varies = timeMatters(w.p)
   return (
     <li className="flex items-center gap-2 px-3 py-2" style={{ borderColor: 'var(--ring)' }}>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold leading-tight">{place(w)}</span>
         <span className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] muted">
-          <span>{w.b}</span><span>Lv {w.lv}</span>
-          {note && <span>🕒 {note}</span>}
+          <span>{w.b}</span><span>Lv {w.lv}{w.ls ? ` (Lv ${w.ls} later)` : ''}</span>
+          {!varies && <span>🕒 any time</span>}
           {w.on?.includes('water') && <span>🌊 {w.on.includes('land') ? 'land & water' : 'water'}</span>}
           {w.on?.includes('sky') && <span>🪽 flying</span>}
           {w.g ? <span>👥 groups {w.g}%</span> : null}
           {w.v === 'scarlet' && <span className="font-semibold text-scarlet-600">Scarlet only</span>}
           {w.v === 'violet' && <span className="font-semibold text-violet-sv">Violet only</span>}
         </span>
+        {varies && <TimeStrip p={w.p} />}
+        {w.n && !hideNote && <span className="mt-1 block text-[11px] leading-snug text-amber-700 dark:text-amber-300">{noteIcon(w.n)} {w.n}</span>}
       </span>
       <span className="flex shrink-0 flex-col items-end">
         <span className="text-base font-black tabular-nums">{pct}%</span>
@@ -177,5 +227,24 @@ function RaidList({ raids }: { raids: RaidSpawn[] }) {
         ))}
       </div>
     </section>
+  )
+}
+
+/** Morning / day / evening / night chance for one spawn; greyed out when it never appears then. */
+function TimeStrip({ p }: { p: WildSpawn['p'] }) {
+  return (
+    <span className="mt-1 grid max-w-[16rem] grid-cols-4 gap-1" aria-label="Chance by time of day">
+      {p.map((v, i) => (
+        <span
+          key={i}
+          title={`${TIME_LABEL[i]}: ${v ? `${v}%` : 'does not spawn'}`}
+          className={`flex flex-col items-center rounded-md px-1 py-0.5 text-[10px] leading-tight ${v ? '' : 'opacity-35'}`}
+          style={{ background: 'var(--surface-2)' }}
+        >
+          <span className="whitespace-nowrap"><span aria-hidden>{TIME_ICON[i]}</span> {TIME_SHORT[i]}</span>
+          <span className="font-semibold tabular-nums" style={{ color: 'var(--text)' }}>{v ? `${v}%` : '—'}</span>
+        </span>
+      ))}
+    </span>
   )
 }

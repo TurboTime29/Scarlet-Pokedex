@@ -65,6 +65,10 @@ if ENC:
     check(ralts["p"][3] == 0 and ralts["p"][1] > 0, "Ralts in South Province (Area One) never spawns at night")
     check(all(w["v"] == "violet" for w in ENC["dreepy"]["wild"]), "Dreepy's wild spawns are Violet-only")
     check(any(r["s"] == 3 for r in ENC["pikachu"]["raids"]), "Pikachu appears in 3-star raids")
+    check(sum("main story" in w.get("n", "") for w in ENC["scream-tail"]["wild"]) >= 3, "Scream Tail's Area Zero field spawns are marked post-story")
+    check(any("tree" in w.get("n", "") for w in ENC["pineco"]["wild"]), "Pineco is marked as spawning in trees")
+    murkrow = [w for w in ENC["murkrow"]["wild"] if w["r"] == "paldea"]
+    check(murkrow and all(w["p"][0] == 0 and w["p"][3] > 0 for w in murkrow), "Murkrow only spawns in the evening/night in Paldea")
     check(any(w.get("f") == "wooper-paldea" for w in ENC["wooper"]["wild"]) and any("f" not in w for w in ENC["wooper"]["wild"]),
           "Wooper spawns are split into Paldean and Johto forms")
 
