@@ -72,6 +72,15 @@ if ENC:
     check(any(w.get("f") == "wooper-paldea" for w in ENC["wooper"]["wild"]) and any("f" not in w for w in ENC["wooper"]["wild"]),
           "Wooper spawns are split into Paldean and Johto forms")
 
+ITEMS = json.loads((DATA / "items.json").read_text(encoding="utf-8")) if (DATA / "items.json").exists() else None
+if ITEMS:
+    flat = {i["name"]: i for p in ITEMS["pockets"] for i in p["items"]}
+    check(len(flat) > 450 and len(ITEMS["tms"]) == 229, f"{len(flat)} items and {len(ITEMS['tms'])} TMs")
+    check(any(u["from"] == "pikachu" and u["to"] == "raichu" for u in flat["Thunderstone"].get("evo", [])), "Thunderstone evolves Pikachu into Raichu")
+    check(any(u.get("form") == "vulpix-alola" for u in flat["Ice Stone"].get("evo", [])), "Ice Stone lists Alolan Vulpix as a regional form")
+    check(not flat["Potion"]["dlc"] and flat["Metal Alloy"]["dlc"], "Potion is base game, Metal Alloy is DLC")
+    check(ITEMS["tms"][0]["move"] == "Take Down" and ITEMS["tms"][0]["recipe"], "TM001 is Take Down with a recipe")
+
 missing = [f["slug"] for p in P for f in p["forms"] if not (f["types"] and f["lv"] and (f["art"] or f["spr"]))]
 check(not missing, f"every form has types, a level-up learnset and art (missing: {missing[:8]})")
 

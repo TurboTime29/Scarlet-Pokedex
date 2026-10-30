@@ -20,20 +20,24 @@ const PokemonPage = L(() => import('./pages/PokemonPage'))
 const CountersPage = L(() => import('./pages/CountersPage'))
 const TeamPage = L(() => import('./pages/TeamPage'))
 const SettingsPage = L(() => import('./pages/SettingsPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
+const BagPage = L(() => import('./pages/BagPage'))
+const MapPage = L(() => import('./pages/MapPage'))
+const LocationPage = L(() => import('./pages/LocationPage'))
 const TypeChartPage = L(() => import('./pages/TypeChartPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 
 const tabs = [
   { to: '/', label: 'Pokédex', icon: '📕', end: true },
   { to: '/counters', label: 'Beat a type', icon: '⚔️' },
+  { to: '/map', label: 'Map', icon: '🗺️' },
+  { to: '/bag', label: 'Bag', icon: '🎒' },
   { to: '/team', label: 'My Team', icon: '★' },
-  { to: '/types', label: 'Type chart', icon: '🔢' },
 ]
 
 export default function App() {
   const { db, error } = useDb()
   const loc = useLocation()
   const nav = useNavigate()
-  const isDetail = loc.pathname.startsWith('/p/') || loc.pathname === '/settings'
+  const isDetail = loc.pathname.startsWith('/p/') || loc.pathname.startsWith('/map/') || loc.pathname === '/settings' || loc.pathname === '/types'
   const session = useSync()
   const sync = useSyncStatus()
 
@@ -73,6 +77,9 @@ export default function App() {
                 <Route path="/counters" element={<CountersPage db={db} />} />
                 <Route path="/team" element={<TeamPage db={db} />} />
                 <Route path="/types" element={<TypeChartPage db={db} />} />
+                <Route path="/bag" element={<BagPage db={db} />} />
+                <Route path="/map" element={<MapPage db={db} />} />
+                <Route path="/map/:key" element={<LocationPage db={db} />} />
                 <Route path="/settings" element={<SettingsPage db={db} />} />
                 <Route path="*" element={<DexList db={db} />} />
               </Routes>

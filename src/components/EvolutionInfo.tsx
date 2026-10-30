@@ -81,6 +81,12 @@ export function EvolutionInfo({ db, s, f }: { db: Db; s: Species; f: Form }) {
   )
 }
 
+/** The item named in an evolution condition ("Use a Thunder Stone", "Trade holding Metal Coat"). */
+function itemIn(how: string): string | null {
+  const m = how.match(/(?:Use an? |holding (?:an? |the )?)([A-Z][A-Za-z'’ -]+?)(?= during| at | or |\(|,|$)/)
+  return m ? m[1].trim() : null
+}
+
 const lower = (s: string) => (/^Lv /.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1))
 const titleCase = (slug: string) => slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 
@@ -104,6 +110,9 @@ function EvoStep({ db, node }: { db: Db; node: EvoNode }) {
     <li>
       {missing ? <div className="flex items-start gap-2 rounded-xl p-1.5 opacity-60">{body}</div> : (
         <Link to={`/p/${target!.slug}`} className="flex items-start gap-2 rounded-xl p-1.5 active:scale-[0.99]" style={{ background: 'var(--surface-2)' }}>{body}</Link>
+      )}
+      {itemIn(how) && !missing && (
+        <Link to={`/bag?q=${encodeURIComponent(itemIn(how)!)}`} className="ml-14 mt-0.5 inline-block text-[11px] font-semibold text-scarlet-600">🎒 {itemIn(how)}: where to get it ›</Link>
       )}
     </li>
   )

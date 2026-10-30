@@ -103,3 +103,36 @@ export interface WildSpawn {
 export interface FixedSpawn { loc: string; r: DexId; where: string; lv: string; v: Avail; f?: string; note?: string }
 export interface RaidSpawn { r: DexId; s: number; lv: string; v: Avail; f?: string }
 export interface Encounters { wild: WildSpawn[]; fixed: FixedSpawn[]; raids: RaidSpawn[] }
+
+export interface ItemPlace { n: string; r: DexId }
+/** One way to get an item: "Found" (field), "Shop", "Raid Battles", ... */
+export interface ItemSource { label: string; places: ItemPlace[]; text?: string }
+export interface EvoUse { from: string; to: string; how: string; form?: string }
+
+export interface Item {
+  name: string
+  desc: string
+  found: ItemSource[]
+  /** only obtainable in Kitakami / Blueberry */
+  dlc: boolean
+  spr?: string
+  /** evolutions this item triggers */
+  evo?: EvoUse[]
+}
+
+export interface Tm {
+  num: number
+  move: string
+  type: string
+  cat: 'ph' | 'sp' | 'st'
+  pp: string
+  power: string
+  acc: string
+  /** "400 LP", "Lechonk Hair * 3", ... */
+  recipe: string[]
+  desc: string
+  found: ItemSource[]
+  dlc: boolean
+}
+
+export interface ItemsData { pockets: { id: string; label: string; items: Item[] }[]; tms: Tm[] }

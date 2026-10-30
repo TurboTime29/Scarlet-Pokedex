@@ -5,8 +5,8 @@ import { usePrefs } from '../store/prefs'
 import { DEXES, type Db, type DexId, type EvoNode, type FixedSpawn, type Form, type RaidSpawn, type Species, type WildSpawn } from '../data/types'
 
 const TIMES = ['morning', 'day', 'evening', 'night'] as const
-const TIME_ICON = ['🌅', '☀️', '🌇', '🌙'] as const
-const TIME_LABEL = ['Morning', 'Day', 'Evening', 'Night'] as const
+export const TIME_ICON = ['🌅', '☀️', '🌇', '🌙'] as const
+export const TIME_LABEL = ['Morning', 'Day', 'Evening', 'Night'] as const
 const TIME_SHORT = ['Morn', 'Day', 'Eve', 'Night'] as const
 const PREVIEW = 5
 
@@ -35,7 +35,7 @@ function joinTimes(ix: number[], conj: 'and' | 'or' = 'and'): string {
 }
 
 /** Worth showing per-time odds: it never spawns at some time, or one time is clearly better. */
-const timeMatters = (p: WildSpawn['p']) => p.some((v) => v === 0) || Math.max(...p) >= Math.min(...p) * 1.3
+export const timeMatters = (p: WildSpawn['p']) => p.some((v) => v === 0) || Math.max(...p) >= Math.min(...p) * 1.3
 
 /** When the Pokémon can be found, across all its spawns shown here. */
 function whenToLook(wild: WildSpawn[]): { tone: 'warn' | 'info' | 'plain'; text: string } | null {
@@ -52,7 +52,7 @@ function whenToLook(wild: WildSpawn[]): { tone: 'warn' | 'info' | 'plain'; text:
 }
 
 /** Icon for a spawn note by what kind of condition it is. */
-function noteIcon(n: string): string {
+export function noteIcon(n: string): string {
   if (/main story|titan|league club|diversity|after /i.test(n)) return '🔓'
   if (/tree/i.test(n)) return '🌳'
   if (/disguise/i.test(n)) return '🎭'
@@ -61,7 +61,7 @@ function noteIcon(n: string): string {
   return 'ℹ️'
 }
 
-function rarity(pct: number) {
+export function rarity(pct: number) {
   if (pct >= 15) return { label: 'Common', cls: 'bg-emerald-600 text-white' }
   if (pct >= 5) return { label: 'Uncommon', cls: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' }
   if (pct >= 2) return { label: 'Rare', cls: 'bg-amber-500/20 text-amber-700 dark:text-amber-300' }
@@ -231,9 +231,9 @@ function RaidList({ raids }: { raids: RaidSpawn[] }) {
 }
 
 /** Morning / day / evening / night chance for one spawn; greyed out when it never appears then. */
-function TimeStrip({ p }: { p: WildSpawn['p'] }) {
+export function TimeStrip({ p, compact }: { p: WildSpawn['p']; compact?: boolean }) {
   return (
-    <span className="mt-1 grid max-w-[16rem] grid-cols-4 gap-1" aria-label="Chance by time of day">
+    <span className={`mt-1 grid grid-cols-4 ${compact ? 'max-w-[11rem] gap-0.5' : 'max-w-[16rem] gap-1'}`} aria-label="Chance by time of day">
       {p.map((v, i) => (
         <span
           key={i}
@@ -241,7 +241,7 @@ function TimeStrip({ p }: { p: WildSpawn['p'] }) {
           className={`flex flex-col items-center rounded-md px-1 py-0.5 text-[10px] leading-tight ${v ? '' : 'opacity-35'}`}
           style={{ background: 'var(--surface-2)' }}
         >
-          <span className="whitespace-nowrap"><span aria-hidden>{TIME_ICON[i]}</span> {TIME_SHORT[i]}</span>
+          <span className="whitespace-nowrap"><span aria-hidden>{TIME_ICON[i]}</span>{compact ? null : ` ${TIME_SHORT[i]}`}</span>
           <span className="font-semibold tabular-nums" style={{ color: 'var(--text)' }}>{v ? `${v}%` : '—'}</span>
         </span>
       ))}

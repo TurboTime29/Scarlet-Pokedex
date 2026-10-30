@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Db, DexId, Encounters, EvoNode, Form, Species } from './types'
+import type { Db, DexId, Encounters, EvoNode, Form, ItemsData, Species } from './types'
 
 const base = import.meta.env.BASE_URL
 
@@ -87,3 +87,21 @@ export function useEncounters(): Record<string, Encounters> | null {
   }
   return useSyncExternalStore((l) => { encListeners.add(l); return () => encListeners.delete(l) }, () => encounters, () => encounters)
 }
+
+// Item data (~450 KB) loads the first time the Bag or a map page needs it.
+let items: ItemsData | null = null
+let itemsPromise: Promise<void> | null = null
+const itemListeners = new Set<() => void>()
+
+export function useItems(): ItemsData | null {
+  if (!itemsPromise) {
+    itemsPromise = fetch(`${base}data/items.json`)
+      .then((r) => (r.ok ? r.json() : { pockets: [], tms: [] }))
+      .catch(() => ({ pockets: [], tms: [] }))
+      .then((d) => { items = d; itemListeners.forEach((l) => l()) })
+  }
+  return useSyncExternalStore((l) => { itemListeners.add(l); return () => itemListeners.delete(l) }, () => items, () => items)
+}
+
+/** Location names from different sources ("South Province (Area One)" / "South Province Area One") compared loosely. */
+export const placeKey = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')

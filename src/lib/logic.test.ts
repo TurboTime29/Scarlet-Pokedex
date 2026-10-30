@@ -124,3 +124,17 @@ describe('DLC filter', () => {
     expect(findCounters(db, ['dragon'], { baseGameOnly: true }).every((c) => !isDlcForm(c.species, c.form))).toBe(true)
   })
 })
+
+describe('DLC filter across Beat a type', () => {
+  const db = loadDb()
+  const all = ['normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground', 'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'] as const
+  it('never suggests a DLC Pokémon or form for any type, in any scope', () => {
+    const caughtWithDlc = new Set(['ogerpon', 'fezandipiti', 'archaludon', 'wooper', 'tinkaton', 'garchomp'])
+    for (const t of all) {
+      for (const only of [undefined, caughtWithDlc]) {
+        const res = findCounters(db, [t], { baseGameOnly: true, includeViolet: true, only })
+        expect(res.filter((c) => isDlcForm(c.species, c.form)).map((c) => c.form.slug)).toEqual([])
+      }
+    }
+  })
+})

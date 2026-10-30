@@ -26,8 +26,8 @@ export default function CountersPage({ db }: { db: Db }) {
   }, [scope, caught, team, db])
 
   const results = useMemo(
-    // Pokémon you already own always count; "All Pokémon" sticks to what your copy of the game can catch.
-    () => findCounters(db, picked, { includeViolet, finalOnly: finalOnly && scope === 'all', only, baseGameOnly: !dlc && scope === 'all' }),
+    // Without the DLC, DLC Pokémon stay out of every list, including caught/team marks made while browsing the DLC dexes.
+    () => findCounters(db, picked, { includeViolet, finalOnly: finalOnly && scope === 'all', only, baseGameOnly: !dlc }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [db, picked.join(), includeViolet, finalOnly, scope, only, dlc],
   )
@@ -41,7 +41,10 @@ export default function CountersPage({ db }: { db: Db }) {
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="font-display text-2xl font-extrabold">Beat a type</h1>
+        <div className="flex items-baseline justify-between gap-2">
+          <h1 className="font-display text-2xl font-extrabold">Beat a type</h1>
+          <Link to="/types" className="text-xs font-semibold text-scarlet-600">🔢 Full type chart</Link>
+        </div>
         <p className="text-sm muted">Pick the opponent’s type (up to two, like a Tera Raid or a dual-type Pokémon). You’ll see Pokémon whose own type hits it super-effectively — best switch-ins first.</p>
       </div>
 
@@ -82,7 +85,7 @@ export default function CountersPage({ db }: { db: Db }) {
           <p className="text-sm">
             <span className="font-semibold">{results.length}</span> Pokémon hit <Types types={picked} size="sm" /> super-effectively.
             {picked.length === 2 && <span className="muted"> Opponent STAB checked for both types.</span>}
-            {!dlc && scope === 'all' && <span className="muted"> Base game only — <Link to="/settings" className="font-semibold text-scarlet-600">DLC Pokémon hidden</Link>.</span>}
+            {!dlc && <span className="muted"> Base game only — <Link to="/settings" className="font-semibold text-scarlet-600">DLC Pokémon hidden</Link>.</span>}
           </p>
           {!results.length && (
             <p className="py-6 text-center text-sm muted">
