@@ -22,13 +22,14 @@ const TeamPage = L(() => import('./pages/TeamPage'))
 const SettingsPage = L(() => import('./pages/SettingsPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 const BagPage = L(() => import('./pages/BagPage'))
 const MapPage = L(() => import('./pages/MapPage'))
+const HuntPage = L(() => import('./pages/HuntPage'))
 const LocationPage = L(() => import('./pages/LocationPage'))
 const TypeChartPage = L(() => import('./pages/TypeChartPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 
 const tabs = [
   { to: '/', label: 'Pokédex', icon: '📕', end: true },
   { to: '/counters', label: 'Beat a type', icon: '⚔️' },
-  { to: '/map', label: 'Map', icon: '🗺️' },
+  { to: '/hunt', label: 'Hunt', icon: '🎯', also: '/map' },
   { to: '/bag', label: 'Bag', icon: '🎒' },
   { to: '/team', label: 'My Team', icon: '★' },
 ]
@@ -78,6 +79,7 @@ export default function App() {
                 <Route path="/team" element={<TeamPage db={db} />} />
                 <Route path="/types" element={<TypeChartPage db={db} />} />
                 <Route path="/bag" element={<BagPage db={db} />} />
+                <Route path="/hunt" element={<HuntPage db={db} />} />
                 <Route path="/map" element={<MapPage db={db} />} />
                 <Route path="/map/:key" element={<LocationPage db={db} />} />
                 <Route path="/settings" element={<SettingsPage db={db} />} />
@@ -92,7 +94,7 @@ export default function App() {
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md" style={{ background: 'color-mix(in srgb, var(--surface) 88%, transparent)', borderColor: 'var(--ring)' }}>
         <div className="mx-auto flex max-w-3xl">
           {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${isActive ? 'text-scarlet-600' : 'muted'}`}>
+            <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${isActive || ('also' in t && loc.pathname === t.also) ? 'text-scarlet-600' : 'muted'}`}>
               <span className="text-lg leading-none">{t.icon}</span>{t.label}
             </NavLink>
           ))}

@@ -5,6 +5,7 @@ import { DEXES, type Db } from '../data/types'
 import { buildPlaces, type Place } from '../lib/locations'
 import { isDlcForm } from '../lib/dlc'
 import { usePrefs } from '../store/prefs'
+import { FindTabs } from './HuntPage'
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -35,6 +36,7 @@ export default function MapPage({ db }: { db: Db }) {
 
   return (
     <div className="space-y-4">
+      <FindTabs active="map" />
       <div className="sticky top-[calc(52px+env(safe-area-inset-top))] z-10 -mx-4 space-y-2 px-4 pb-2 pt-2" style={{ background: 'var(--bg)' }}>
         <div className="flex items-baseline justify-between">
           <h1 className="font-display text-2xl font-extrabold">Map</h1>

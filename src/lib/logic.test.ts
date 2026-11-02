@@ -7,6 +7,7 @@ import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies } from './dlc'
+import { buildHunt, sortValue, spotCondition } from './hunt'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -136,5 +137,32 @@ describe('DLC filter across Beat a type', () => {
         expect(res.filter((c) => isDlcForm(c.species, c.form)).map((c) => c.form.slug)).toEqual([])
       }
     }
+  })
+})
+
+describe('hunt list', () => {
+  const db = loadDb()
+  const enc = JSON.parse(readFileSync(new URL('../../public/data/encounters.json', import.meta.url), 'utf-8'))
+  const hunt = buildHunt(db, enc)
+  const get = (slug: string) => hunt.find((h) => h.form.slug === slug)
+  it('only has Pokémon you can catch yourself in base-game Scarlet', () => {
+    expect(hunt.length).toBeGreaterThan(300)
+    expect(hunt.every((h) => h.form.ver !== 'violet' && !isDlcForm(h.species, h.form))).toBe(true)
+    expect(get('dreepy')).toBeUndefined() // Violet only
+    expect(get('sprigatito')).toBeUndefined() // gift, not caught
+    expect(get('okidogi')).toBeUndefined() // DLC
+  })
+  it('knows evolutions, time limits and conditions', () => {
+    expect(get('larvitar')?.topName).toBe('Tyranitar')
+    expect(get('murkrow')?.times).toEqual([false, false, true, true])
+    const klawfTitan = get('klawf')!.spots.find((sp) => sp.kind === 'fixed' && /titan/i.test(sp.x.where))!
+    expect(spotCondition(klawfTitan)).toMatch(/Titan/)
+    expect(get('klawf')!.conditions).toEqual([]) // it also spawns normally
+    expect(get('scream-tail')!.spots.some((sp) => /main story/.test(spotCondition(sp)))).toBe(true)
+    expect(get('wooper-paldea')).toBeDefined()
+  })
+  it('sorts by BST', () => {
+    const top = [...hunt].sort((a, b) => sortValue(b, 'bst', null) - sortValue(a, 'bst', null))[0]
+    expect(top.bst).toBeGreaterThanOrEqual(600)
   })
 })

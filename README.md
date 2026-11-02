@@ -6,6 +6,7 @@ A phone-friendly Pokédex for **Pokémon Scarlet** (Paldea, Kitakami and Blueber
 - Pokémon HOME artwork with a shiny toggle
 - Base stats with a "worth raising?" verdict, evolution lines (tap to jump), level-up / TM / egg moves
 - **Where to find it**: every spawn area per region with the biome, levels, time of day and odds (the Pokémon's share of spawns in that biome, from datamined spawn weights), plus fixed spots, gifts and Tera Raids
+- **Hunt**: everything you can catch yourself in base-game Scarlet (wild + fixed spots), sortable by BST, final-evolution BST or any stat, with time-of-day and condition badges
 - **Map**: every area and sub-area with each biome's Pokémon, odds and a time-of-day filter, plus fixed spots and items found there
 - **Bag**: every item and TM in Scarlet/Violet, what it does, where to get it, and which Pokémon each evolution item works on
 - Shiny odds calculator (Shiny Charm, Sparkling Power, outbreaks, Masuda)
