@@ -5,7 +5,7 @@ import { DEXES, type Db } from '../data/types'
 import { buildPlaces, type WildRow } from '../lib/locations'
 import { isDlcForm } from '../lib/dlc'
 import { usePrefs } from '../store/prefs'
-import { CaughtToggle, DlcBadge, Img, Types } from '../components/ui'
+import { CaughtToggle, DlcBadge, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, TimeStrip, noteIcon, rarity, timeMatters } from '../components/Encounters'
 
 type Time = 'all' | 0 | 1 | 2 | 3
@@ -14,7 +14,7 @@ export default function LocationPage({ db }: { db: Db }) {
   const { key = '' } = useParams()
   const enc = useEncounters()
   const items = useItems()
-  const { dlc, shiny } = usePrefs()
+  const { dlc, shiny, wanted, caught } = usePrefs()
   const [time, setTime] = useState<Time>('all')
   const [showViolet, setShowViolet] = useState(false)
   if (!enc) return <p className="py-16 text-center text-sm muted">Loading…</p>
@@ -47,6 +47,22 @@ export default function LocationPage({ db }: { db: Db }) {
         {place && <p className="text-xs muted">{place.subs.filter((s) => s.name).length ? `${place.subs.filter((s) => s.name).length} sub-areas · ` : ''}wild odds are per biome: “12%” means 12% of the Pokémon spawning in that biome here.</p>}
       </div>
 
+      {(() => {
+        // which of your hunt targets (not yet caught) can be caught here
+        if (!place) return null
+        const here = new Map<string, string>()
+        for (const sub of place.subs) for (const b of sub.biomes) for (const r of b.rows) {
+          if (wanted.includes(r.form.slug) && !caught.includes(r.species.slug) && (time === 'all' || r.w.p[time] > 0)) here.set(r.form.slug, r.species.name)
+        }
+        for (const f of place.fixed) if (wanted.includes(f.form.slug) && !caught.includes(f.species.slug)) here.set(f.form.slug, f.species.name)
+        if (!here.size) return null
+        return (
+          <div className="rounded-2xl border-2 border-amber-400 bg-amber-400/10 p-3 text-sm">
+            <b className="text-amber-600 dark:text-amber-300">★ {here.size} of your hunt {here.size === 1 ? 'target is' : 'targets are'} here{time === 'all' ? '' : ` ${time === 3 ? 'at night' : `in the ${TIME_LABEL[time].toLowerCase()}`}`}:</b> {[...here.values()].join(', ')}
+          </div>
+        )
+      })()}
+
       {dlcArea && !dlc && (
         <div className="rounded-2xl border-2 border-teal-600 bg-teal-600/10 p-3 text-sm"><DlcBadge /> This area is in the DLC. <Link to="/settings" className="font-semibold underline">Turn on the DLC</Link> if you have it.</div>
       )}
@@ -73,7 +89,7 @@ export default function LocationPage({ db }: { db: Db }) {
               <div key={b.name}>
                 <h3 className="mb-1 text-xs font-bold muted">{b.name} · {b.rows.length} Pokémon</h3>
                 <ul className="card divide-y overflow-hidden" style={{ borderColor: 'var(--ring)' }}>
-                  {b.rows.map((r, i) => <Row key={i} r={r} pct={pct(r)} showStrip={time === 'all'} shiny={shiny} dlcOn={dlc} />)}
+                  {b.rows.map((r, i) => <Row key={i} r={r} pct={pct(r)} showStrip={time === 'all'} shiny={shiny} dlcOn={dlc} target={wanted.includes(r.form.slug)} />)}
                 </ul>
               </div>
             ))}
@@ -127,11 +143,11 @@ export default function LocationPage({ db }: { db: Db }) {
   )
 }
 
-function Row({ r, pct, showStrip, shiny, dlcOn }: { r: WildRow; pct: number; showStrip: boolean; shiny: boolean; dlcOn: boolean }) {
+function Row({ r, pct, showStrip, shiny, dlcOn, target }: { r: WildRow; pct: number; showStrip: boolean; shiny: boolean; dlcOn: boolean; target: boolean }) {
   const rar = rarity(pct)
   const { species: s, form: f, w } = r
   return (
-    <li className="flex items-center gap-2 px-2 py-1.5" style={{ borderColor: 'var(--ring)' }}>
+    <li className={`flex items-center gap-2 px-2 py-1.5 ${target ? 'bg-amber-400/10' : ''}`} style={{ borderColor: 'var(--ring)', boxShadow: target ? 'inset 3px 0 0 #fbbf24' : undefined }}>
       <Img src={thumb(f, shiny)} alt="" size={44} className="h-11 w-11 shrink-0 object-contain" />
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-x-1.5">
@@ -153,7 +169,7 @@ function Row({ r, pct, showStrip, shiny, dlcOn }: { r: WildRow; pct: number; sho
         <span className="text-sm font-black tabular-nums">{pct}%</span>
         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{rar.label}</span>
       </span>
-      <CaughtToggle species={s.slug} size={22} />
+      <span className="flex flex-col items-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={20} /></span>
     </li>
   )
 }

@@ -166,3 +166,13 @@ describe('hunt list', () => {
     expect(top.bst).toBeGreaterThanOrEqual(600)
   })
 })
+
+describe('hunt targets sync', () => {
+  const base: ProgressDoc = { version: 2, marks: {}, team: [], teamAt: 0, boosts: { charm: false, sparkling: 0, outbreak: 0, masuda: false }, boostsAt: 0, updatedAt: 1 }
+  it('keeps the newest star / un-star per form and handles older documents without targets', () => {
+    const phone = { ...base, targets: { larvitar: 100, 'tauros-paldea-blaze-breed': -300 } }
+    const pc = { ...base, targets: { 'tauros-paldea-blaze-breed': 200, gible: 50 } }
+    expect(mergeProgress(phone, pc).targets).toEqual({ larvitar: 100, 'tauros-paldea-blaze-breed': -300, gible: 50 })
+    expect(mergeProgress(base, phone).targets).toEqual(phone.targets)
+  })
+})

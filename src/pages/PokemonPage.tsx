@@ -4,7 +4,7 @@ import { artwork, bst, formLabel, isFinal, mainForm, pad } from '../data/db'
 import { DEXES, type Db, type EvoNode, type Form, type Species } from '../data/types'
 import { TYPE_COLORS, type Type } from '../lib/types'
 import { TEAM_SIZE, usePrefs } from '../store/prefs'
-import { CaughtToggle, DlcBadge, Img, Types, VersionBadge } from '../components/ui'
+import { CaughtToggle, DlcBadge, Img, TargetStar, Types, VersionBadge } from '../components/ui'
 import { dlcPart, isDlcForm } from '../lib/dlc'
 import { EvolutionLine } from '../components/EvolutionLine'
 import { Matchups } from '../components/Matchups'
@@ -53,7 +53,10 @@ export default function PokemonPage({ db }: { db: Db }) {
             <p className="text-sm muted">{f.label && !f.default ? `${formLabel(f)} · ` : ''}{s.genus}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5"><Types types={f.types} size="lg" /><VersionBadge form={f} long /></div>
           </div>
-          <CaughtToggle species={s.slug} size={34} />
+          <div className="flex flex-col items-center">
+            <CaughtToggle species={s.slug} size={34} />
+            <TargetStar form={f.slug} />
+          </div>
         </div>
         <div className="art-stage relative mx-auto mt-2 aspect-square w-full max-w-[18rem]">
           <Img key={artwork(f, shiny)} src={artwork(f, shiny)} alt={`${shiny ? 'Shiny ' : ''}${s.name}`} size={288} className="h-full w-full object-contain drop-shadow-xl" />

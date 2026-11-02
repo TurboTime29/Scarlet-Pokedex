@@ -22,6 +22,16 @@ export function speciesHere(p: Place, dlc: boolean): Set<string> {
 export default function MapPage({ db }: { db: Db }) {
   const enc = useEncounters()
   const dlc = usePrefs((s) => s.dlc)
+  const wanted = usePrefs((s) => s.wanted)
+  const caught = usePrefs((s) => s.caught)
+  const [byTargets, setByTargets] = useState(false)
+  // uncaught hunt targets that can be caught in an area (wild or fixed)
+  const targetsIn = (p: Place) => {
+    const out = new Set<string>()
+    for (const sub of p.subs) for (const b of sub.biomes) for (const r of b.rows) if (r.w.v !== 'violet' && wanted.includes(r.form.slug) && !caught.includes(r.species.slug)) out.add(r.species.slug)
+    for (const f of p.fixed) if (f.x.v !== 'violet' && wanted.includes(f.form.slug) && !caught.includes(f.species.slug)) out.add(f.species.slug)
+    return out.size
+  }
   const [q, setQ] = useState('')
   const places = useMemo(() => (enc ? buildPlaces(db, enc) : []), [db, enc])
   const query = norm(q)
@@ -42,6 +52,7 @@ export default function MapPage({ db }: { db: Db }) {
           <h1 className="font-display text-2xl font-extrabold">Map</h1>
           {!dlc && <Link to="/settings" className="text-[11px] font-semibold text-scarlet-600">DLC areas hidden · change</Link>}
         </div>
+        {wanted.length > 0 && <button className="chip" aria-pressed={byTargets} onClick={() => setByTargets(!byTargets)}>★ Most targets first</button>}
         <div className="relative">
           <input className="input pl-9" type="search" placeholder="Search an area or a Pokémon…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search areas" />
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 muted">🔍</span>
@@ -49,7 +60,7 @@ export default function MapPage({ db }: { db: Db }) {
       </div>
 
       {regions.map((d) => {
-        const list = places.filter((p) => p.r === d.id && matches(p))
+        const list = places.filter((p) => p.r === d.id && matches(p)).sort((a, b) => (byTargets ? targetsIn(b) - targetsIn(a) : 0))
         if (!list.length) return null
         return (
           <section key={d.id}>
@@ -57,6 +68,7 @@ export default function MapPage({ db }: { db: Db }) {
             <ul className="card divide-y overflow-hidden" style={{ borderColor: 'var(--ring)' }}>
               {list.map((p) => {
                 const n = speciesHere(p, dlc).size
+                const t = targetsIn(p)
                 const subs = p.subs.filter((s) => s.name).length
                 return (
                   <li key={p.key} style={{ borderColor: 'var(--ring)' }}>
@@ -64,7 +76,7 @@ export default function MapPage({ db }: { db: Db }) {
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold leading-tight">{p.name}</span>
                         <span className="text-[11px] muted">
-                          {n} Pokémon{subs ? ` · ${subs} sub-areas` : ''}{p.fixed.length ? ` · ${p.fixed.length} fixed spots` : ''}
+                          {t > 0 && <b className="text-amber-500">★ {t} {t === 1 ? 'target' : 'targets'} · </b>}{n} Pokémon{subs ? ` · ${subs} sub-areas` : ''}{p.fixed.length ? ` · ${p.fixed.length} fixed spots` : ''}
                           {query && !norm(p.name).includes(query) ? ` · has “${q}”` : ''}
                         </span>
                       </span>

@@ -20,6 +20,8 @@ export interface ProgressDoc {
   /** owns The Teal Mask + The Indigo Disk (optional: older documents don't have it) */
   dlc?: boolean
   dlcAt?: number
+  /** hunt targets by form slug, timestamped like marks (+ = wanted, - = removed) */
+  targets?: Record<string, number>
   updatedAt: number
 }
 
@@ -30,6 +32,9 @@ interface Prefs extends Omit<ProgressDoc, 'version'> {
   filter: CaughtFilter
   /** species slugs marked as caught (derived from marks) */
   caught: string[]
+  /** form slugs currently targeted (derived from targets) */
+  wanted: string[]
+  toggleTarget: (form: string) => void
   setBoosts: (b: Partial<ShinyBoosts>) => void
   setDlc: (v: boolean) => void
   setShiny: (v: boolean) => void
@@ -45,6 +50,13 @@ interface Prefs extends Omit<ProgressDoc, 'version'> {
 }
 
 const caughtOf = (marks: Record<string, number>) => Object.keys(marks).filter((k) => marks[k] > 0)
+
+/** Newest change per key wins (used for caught marks and hunt targets). */
+function mergeStamps(a: Record<string, number> = {}, b: Record<string, number> = {}): Record<string, number> {
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) if (!(k in out) || Math.abs(v) > Math.abs(out[k])) out[k] = v
+  return out
+}
 const now = () => Date.now()
 
 export const usePrefs = create<Prefs>()(
@@ -65,7 +77,13 @@ export const usePrefs = create<Prefs>()(
         boostsAt: 0,
         dlc: false,
         dlcAt: 0,
+        targets: {},
+        wanted: [],
         updatedAt: 0,
+        toggleTarget: (form) => set((s) => {
+          const targets = { ...s.targets, [form]: (s.targets?.[form] ?? 0) > 0 ? -now() : now() }
+          return { targets, wanted: caughtOf(targets), updatedAt: now() }
+        }),
         setBoosts: (b) => set((s) => ({ boosts: { ...s.boosts, ...b }, boostsAt: now(), updatedAt: now() })),
         setDlc: (dlc) => set((s) => ({ dlc, dlcAt: now(), updatedAt: now(), dex: dlc ? s.dex : 'paldea' })),
         setShiny: (shiny) => set({ shiny }),
@@ -105,6 +123,7 @@ export const usePrefs = create<Prefs>()(
         replaceProgress: (doc) => set({
           marks: doc.marks, caught: caughtOf(doc.marks), team: doc.team, teamAt: doc.teamAt,
           boosts: doc.boosts, boostsAt: doc.boostsAt, dlc: doc.dlc ?? false, dlcAt: doc.dlcAt ?? 0, updatedAt: doc.updatedAt,
+          targets: doc.targets ?? {}, wanted: caughtOf(doc.targets ?? {}),
           ...(doc.dlc ? {} : { dex: 'paldea' as const }),
         }),
       }
@@ -114,7 +133,7 @@ export const usePrefs = create<Prefs>()(
       version: 2,
       partialize: (s) => ({
         shiny: s.shiny, hideViolet: s.hideViolet, dex: s.dex, filter: s.filter,
-        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, updatedAt: s.updatedAt,
+        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, targets: s.targets, updatedAt: s.updatedAt,
       }),
       // v1 stored a plain caught list: give those marks an old timestamp so any cloud change wins over them
       migrate: (old, version) => {
@@ -128,30 +147,30 @@ export const usePrefs = create<Prefs>()(
       },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Prefs>
-        return { ...current, ...p, caught: caughtOf(p.marks ?? {}) }
+        return { ...current, ...p, caught: caughtOf(p.marks ?? {}), wanted: caughtOf(p.targets ?? {}) }
       },
     },
   ),
 )
 
 export function exportProgress(s: Omit<ProgressDoc, 'version'>): ProgressDoc {
-  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc ?? false, dlcAt: s.dlcAt ?? 0, updatedAt: s.updatedAt }
+  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc ?? false, dlcAt: s.dlcAt ?? 0, targets: s.targets ?? {}, updatedAt: s.updatedAt }
 }
 
 export function isEmptyProgress(d: ProgressDoc): boolean {
-  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0 && !d.dlcAt
+  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0 && !d.dlcAt && !Object.keys(d.targets ?? {}).length
 }
 
 /** Merge two devices: per-Pokémon newest caught/un-caught wins; team and shiny settings come from whichever changed last. */
 export function mergeProgress(a: ProgressDoc, b: ProgressDoc): ProgressDoc {
-  const marks: Record<string, number> = { ...a.marks }
-  for (const [k, v] of Object.entries(b.marks)) if (!(k in marks) || Math.abs(v) > Math.abs(marks[k])) marks[k] = v
+  const marks = mergeStamps(a.marks, b.marks)
   const team = a.teamAt >= b.teamAt ? a : b
   const boosts = a.boostsAt >= b.boostsAt ? a : b
   const dlc = (a.dlcAt ?? 0) >= (b.dlcAt ?? 0) ? a : b
   return {
     version: 2, marks, team: team.team, teamAt: team.teamAt, boosts: boosts.boosts, boostsAt: boosts.boostsAt,
     dlc: dlc.dlc ?? false, dlcAt: dlc.dlcAt ?? 0,
+    targets: mergeStamps(a.targets, b.targets),
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   }
 }

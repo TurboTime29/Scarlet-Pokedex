@@ -86,3 +86,21 @@ export function Img({ src, alt, className, size }: { src: string; alt: string; c
 export function DlcBadge({ title }: { title?: string }) {
   return <span title={title ?? 'Needs the DLC (The Teal Mask / The Indigo Disk)'} className="inline-flex items-center rounded-full bg-teal-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white whitespace-nowrap">DLC</span>
 }
+
+/** ☆ / ★ toggle for a hunt target (by form slug). */
+export function TargetStar({ form, size = 'md' }: { form: string; size?: 'sm' | 'md' }) {
+  const on = usePrefs((s) => s.wanted.includes(form))
+  const toggle = usePrefs((s) => s.toggleTarget)
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      aria-label={on ? 'Remove from hunt targets' : 'Add to hunt targets'}
+      title={on ? 'Hunt target (tap to remove)' : 'Add to hunt targets'}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(form) }}
+      className={`grid shrink-0 place-items-center rounded-full leading-none transition-transform active:scale-90 ${size === 'sm' ? 'h-8 w-8 text-lg' : 'h-10 w-10 text-2xl'} ${on ? 'text-amber-400' : 'muted'}`}
+    >
+      {on ? '★' : '☆'}
+    </button>
+  )
+}

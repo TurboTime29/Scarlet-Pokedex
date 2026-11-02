@@ -1,12 +1,12 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
-import { formLabel, thumb, useEncounters } from '../data/db'
+import { formLabel, placeKey, thumb, useEncounters } from '../data/db'
 import type { Db } from '../data/types'
 import { buildHunt, sortValue, spotCondition, type HuntEntry, type SortKey, type Spot } from '../lib/hunt'
 import { TYPES, typeName } from '../lib/types'
 import { usePrefs } from '../store/prefs'
-import { CaughtToggle, Img, Types } from '../components/ui'
+import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
 
 const SORTS: { id: SortKey; label: string; short: string }[] = [
@@ -23,8 +23,8 @@ const SORTS: { id: SortKey; label: string; short: string }[] = [
 ]
 
 // Hunt settings survive leaving the tab (not saved across app restarts on purpose: it's a session tool).
-const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; time: number | null; type: string; q: string }>(() => ({
-  sort: 'bst', notCaught: true, finalOnly: false, time: null, type: '', q: '',
+const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; targetsOnly: boolean; time: number | null; type: string; q: string }>(() => ({
+  sort: 'bst', notCaught: true, finalOnly: false, targetsOnly: false, time: null, type: '', q: '',
 }))
 
 export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
@@ -38,7 +38,8 @@ export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
 
 export default function HuntPage({ db }: { db: Db }) {
   const enc = useEncounters()
-  const { caught, shiny } = usePrefs()
+  const { caught, shiny, wanted } = usePrefs()
+  const wantedSet = useMemo(() => new Set(wanted), [wanted])
   const st = useHunt()
   const set = useHunt.setState
   const caughtSet = useMemo(() => new Set(caught), [caught])
@@ -49,11 +50,12 @@ export default function HuntPage({ db }: { db: Db }) {
     return all
       .filter((h) => !st.notCaught || !caughtSet.has(h.species.slug))
       .filter((h) => !st.finalOnly || h.final)
+      .filter((h) => !st.targetsOnly || wantedSet.has(h.form.slug))
       .filter((h) => st.time == null || h.times[st.time])
       .filter((h) => !st.type || h.form.types.includes(st.type))
       .filter((h) => !q || h.species.name.toLowerCase().includes(q))
       .sort((a, b) => sortValue(b, st.sort, st.time) - sortValue(a, st.sort, st.time) || b.bst - a.bst)
-  }, [all, st, caughtSet])
+  }, [all, st, caughtSet, wantedSet])
 
   if (!enc) return <p className="py-16 text-center text-sm muted">Loading spawns…</p>
   const sort = SORTS.find((s) => s.id === st.sort)!
@@ -81,6 +83,7 @@ export default function HuntPage({ db }: { db: Db }) {
           </label>
         </div>
         <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
+          <button className="chip" aria-pressed={st.targetsOnly} onClick={() => set({ targetsOnly: !st.targetsOnly })}>★ My targets{wanted.length ? ` (${all.filter((h) => wantedSet.has(h.form.slug) && (!st.notCaught || !caughtSet.has(h.species.slug))).length})` : ''}</button>
           <button className="chip" aria-pressed={st.notCaught} onClick={() => set({ notCaught: !st.notCaught })}>Not caught yet</button>
           <button className="chip" aria-pressed={st.finalOnly} onClick={() => set({ finalOnly: !st.finalOnly })}>Fully evolved</button>
           <span className="mx-0.5 w-px shrink-0" style={{ background: 'var(--ring)' }} />
@@ -95,6 +98,9 @@ export default function HuntPage({ db }: { db: Db }) {
         <b style={{ color: 'var(--text)' }}>{list.length}</b> Pokémon you can catch yourself in Scarlet’s base game{st.time != null ? ` ${st.time === 3 ? 'at night' : `in the ${TIME_LABEL[st.time].toLowerCase()}`}` : ''}, sorted by {sort.id === 'odds' || sort.id === 'dex' ? sort.label.toLowerCase() : sort.label}.
         {' '}You’ve caught {caughtCount} of {all.length}. Wild spawns and fixed spots only — no gifts, trades, raids, Violet or DLC.
       </p>
+
+      {st.targetsOnly && list.length > 0 && <BestAreas list={list} time={st.time} />}
+      {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
       <ul className="space-y-1.5">
         {list.map((h, i) => <HuntRow key={h.form.slug} h={h} rank={i + 1} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
@@ -159,7 +165,7 @@ function HuntRow({ h, rank, sortKey, sortShort, time, shiny }: { h: HuntEntry; r
         </span>
         {rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
-      <span className="flex items-center"><CaughtToggle species={s.slug} size={24} /></span>
+      <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
     </li>
   )
 }
@@ -176,4 +182,35 @@ function short(n: string): string {
 function Badge({ tone, children }: { tone: 'amber' | 'indigo' | 'plain'; children: ReactNode }) {
   const cls = tone === 'amber' ? 'bg-amber-500/15 text-amber-800 dark:text-amber-200' : tone === 'indigo' ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-200' : 'muted'
   return <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cls}`} style={tone === 'plain' ? { background: 'var(--surface-2)' } : undefined}>{children}</span>
+}
+
+/** Areas where the most of your (filtered) targets can be caught, so you can plan a route. */
+function BestAreas({ list, time }: { list: HuntEntry[]; time: number | null }) {
+  const areas = new Map<string, { name: string; targets: Set<string> }>()
+  for (const h of list) {
+    for (const sp of h.spots) {
+      if (time != null && sp.kind === 'wild' && sp.w.p[time] === 0) continue
+      const name = sp.kind === 'wild' ? sp.w.loc : sp.x.loc
+      const a = areas.get(name) ?? { name, targets: new Set<string>() }
+      a.targets.add(h.species.name)
+      areas.set(name, a)
+    }
+  }
+  const ranked = [...areas.values()].filter((a) => a.targets.size > 0).sort((a, b) => b.targets.size - a.targets.size).slice(0, 5)
+  if (!ranked.length) return null
+  return (
+    <section className="card p-3">
+      <h2 className="font-display text-base font-bold">🧭 Best areas for your targets</h2>
+      <ul className="mt-1.5 space-y-1.5">
+        {ranked.map((a) => (
+          <li key={a.name}>
+            <Link to={`/map/${placeKey(a.name)}`} className="flex items-baseline gap-2 text-sm">
+              <span className="w-12 shrink-0 font-black tabular-nums text-amber-500">★ {a.targets.size}</span>
+              <span className="min-w-0 flex-1"><span className="font-semibold underline decoration-dotted">{a.name}</span><span className="block text-[11px] muted">{[...a.targets].join(', ')}</span></span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }
