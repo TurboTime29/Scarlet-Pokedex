@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
-import { formLabel, placeKey, thumb, useEncounters } from '../data/db'
+import { formLabel, pad, placeKey, thumb, useEncounters } from '../data/db'
 import type { Db } from '../data/types'
 import { buildHunt, sortValue, spotCondition, type HuntEntry, type SortKey, type Spot } from '../lib/hunt'
 import { TYPES, typeName } from '../lib/types'
@@ -103,7 +103,7 @@ export default function HuntPage({ db }: { db: Db }) {
       {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
       <ul className="space-y-1.5">
-        {list.map((h, i) => <HuntRow key={h.form.slug} h={h} rank={i + 1} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
+        {list.map((h) => <HuntRow key={h.form.slug} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
       </ul>
       {!list.length && <p className="py-10 text-center text-sm muted">{st.notCaught ? 'Nothing left to catch with these filters — nice work!' : 'No Pokémon match these filters.'}</p>}
     </div>
@@ -116,7 +116,7 @@ function placeOf(sp: Spot): string {
   return sub ? `${loc} · ${sub}` : loc
 }
 
-function HuntRow({ h, rank, sortKey, sortShort, time, shiny }: { h: HuntEntry; rank: number; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
+function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
   const { species: s, form: f } = h
   // best spot for the chosen time (fixed spots always count)
   const spots = time == null ? h.spots : h.spots.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
@@ -130,7 +130,7 @@ function HuntRow({ h, rank, sortKey, sortShort, time, shiny }: { h: HuntEntry; r
     <li className="card flex items-stretch gap-2 p-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}>
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex min-w-0 flex-1 gap-2">
         <span className="flex w-12 shrink-0 flex-col items-center">
-          <span className="text-[10px] font-bold tabular-nums muted">#{rank}</span>
+          <span className="text-[10px] font-bold tabular-nums muted" title="Paldea dex number">#{pad(s.dex.paldea!)}</span>
           <Img src={thumb(f, shiny)} alt="" size={48} className="h-12 w-12 object-contain" />
         </span>
         <span className="min-w-0 flex-1">
