@@ -22,8 +22,12 @@ export interface ProgressDoc {
   dlcAt?: number
   /** hunt targets by form slug, timestamped like marks (+ = wanted, - = removed) */
   targets?: Record<string, number>
+  /** caught marks for individual forms ("tauros/tauros-paldea-aqua-breed"), timestamped like marks */
+  forms?: Record<string, number>
   updatedAt: number
 }
+
+export const formKey = (species: string, form: string) => `${species}/${form}`
 
 interface Prefs extends Omit<ProgressDoc, 'version'> {
   shiny: boolean
@@ -34,6 +38,10 @@ interface Prefs extends Omit<ProgressDoc, 'version'> {
   caught: string[]
   /** form slugs currently targeted (derived from targets) */
   wanted: string[]
+  /** formKey()s marked as caught (derived from forms) */
+  caughtForms: string[]
+  /** mark one form caught (also marks the species) or un-mark it (un-marks the species when no other form is marked) */
+  toggleFormCaught: (species: string, form: string) => void
   toggleTarget: (form: string) => void
   setBoosts: (b: Partial<ShinyBoosts>) => void
   setDlc: (v: boolean) => void
@@ -79,6 +87,8 @@ export const usePrefs = create<Prefs>()(
         dlcAt: 0,
         targets: {},
         wanted: [],
+        forms: {},
+        caughtForms: [],
         updatedAt: 0,
         toggleTarget: (form) => set((s) => {
           const targets = { ...s.targets, [form]: (s.targets?.[form] ?? 0) > 0 ? -now() : now() }
@@ -91,8 +101,24 @@ export const usePrefs = create<Prefs>()(
         setDex: (dex) => set({ dex }),
         setFilter: (filter) => set({ filter }),
         toggleCaught: (sp) => {
-          const { marks } = get()
-          setMarks({ ...marks, [sp]: (marks[sp] ?? 0) > 0 ? -now() : now() })
+          const { marks, forms = {} } = get()
+          const on = (marks[sp] ?? 0) > 0
+          if (!on) return setMarks({ ...marks, [sp]: now() })
+          // un-marking a species also un-marks its forms
+          const t = now()
+          const nextForms = { ...forms }
+          for (const k of Object.keys(forms)) if (k.startsWith(`${sp}/`) && forms[k] > 0) nextForms[k] = -t
+          setMarks({ ...marks, [sp]: -t }, { forms: nextForms, caughtForms: caughtOf(nextForms) })
+        },
+        toggleFormCaught: (sp, form) => {
+          const { marks, forms = {} } = get()
+          const key = formKey(sp, form)
+          const t = now()
+          const nextForms = { ...forms, [key]: (forms[key] ?? 0) > 0 ? -t : t }
+          const anyForm = Object.keys(nextForms).some((k) => k.startsWith(`${sp}/`) && nextForms[k] > 0)
+          const speciesOn = (marks[sp] ?? 0) > 0
+          const nextMarks = anyForm && !speciesOn ? { ...marks, [sp]: t } : !anyForm && speciesOn ? { ...marks, [sp]: -t } : marks
+          setMarks(nextMarks, { forms: nextForms, caughtForms: caughtOf(nextForms) })
         },
         toggleTeam: (form, sp) => {
           const { team, marks } = get()
@@ -124,6 +150,7 @@ export const usePrefs = create<Prefs>()(
           marks: doc.marks, caught: caughtOf(doc.marks), team: doc.team, teamAt: doc.teamAt,
           boosts: doc.boosts, boostsAt: doc.boostsAt, dlc: doc.dlc ?? false, dlcAt: doc.dlcAt ?? 0, updatedAt: doc.updatedAt,
           targets: doc.targets ?? {}, wanted: caughtOf(doc.targets ?? {}),
+          forms: doc.forms ?? {}, caughtForms: caughtOf(doc.forms ?? {}),
           ...(doc.dlc ? {} : { dex: 'paldea' as const }),
         }),
       }
@@ -133,7 +160,7 @@ export const usePrefs = create<Prefs>()(
       version: 2,
       partialize: (s) => ({
         shiny: s.shiny, hideViolet: s.hideViolet, dex: s.dex, filter: s.filter,
-        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, targets: s.targets, updatedAt: s.updatedAt,
+        marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, targets: s.targets, forms: s.forms, updatedAt: s.updatedAt,
       }),
       // v1 stored a plain caught list: give those marks an old timestamp so any cloud change wins over them
       migrate: (old, version) => {
@@ -147,18 +174,18 @@ export const usePrefs = create<Prefs>()(
       },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Prefs>
-        return { ...current, ...p, caught: caughtOf(p.marks ?? {}), wanted: caughtOf(p.targets ?? {}) }
+        return { ...current, ...p, caught: caughtOf(p.marks ?? {}), wanted: caughtOf(p.targets ?? {}), caughtForms: caughtOf(p.forms ?? {}) }
       },
     },
   ),
 )
 
 export function exportProgress(s: Omit<ProgressDoc, 'version'>): ProgressDoc {
-  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc ?? false, dlcAt: s.dlcAt ?? 0, targets: s.targets ?? {}, updatedAt: s.updatedAt }
+  return { version: 2, marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc ?? false, dlcAt: s.dlcAt ?? 0, targets: s.targets ?? {}, forms: s.forms ?? {}, updatedAt: s.updatedAt }
 }
 
 export function isEmptyProgress(d: ProgressDoc): boolean {
-  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0 && !d.dlcAt && !Object.keys(d.targets ?? {}).length
+  return Object.keys(d.marks).length === 0 && d.team.length === 0 && d.boostsAt === 0 && !d.dlcAt && !Object.keys(d.targets ?? {}).length && !Object.keys(d.forms ?? {}).length
 }
 
 /** Merge two devices: per-Pokémon newest caught/un-caught wins; team and shiny settings come from whichever changed last. */
@@ -171,6 +198,7 @@ export function mergeProgress(a: ProgressDoc, b: ProgressDoc): ProgressDoc {
     version: 2, marks, team: team.team, teamAt: team.teamAt, boosts: boosts.boosts, boostsAt: boosts.boostsAt,
     dlc: dlc.dlc ?? false, dlcAt: dlc.dlcAt ?? 0,
     targets: mergeStamps(a.targets, b.targets),
+    forms: mergeStamps(a.forms, b.forms),
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   }
 }

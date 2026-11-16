@@ -2,8 +2,20 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Db } from '../data/types'
 import { codesFor, violetTrade, type CodeMon, type ExclusiveCode } from '../data/linkCodes'
-import { usePrefs } from '../store/prefs'
+import { formKey, usePrefs } from '../store/prefs'
 import { DlcBadge } from './ui'
+
+/**
+ * Has the player caught this Pokémon? For a specific form, use that form's own mark when they tick
+ * off forms of the species separately (Hunt rows), otherwise the species mark.
+ */
+export function useHasCaught(mon: CodeMon): boolean {
+  return usePrefs((p) => {
+    if (!mon.f) return p.caught.includes(mon.s)
+    if (p.caughtForms.includes(formKey(mon.s, mon.f))) return true
+    return p.caught.includes(mon.s) && !p.caughtForms.some((k) => k.startsWith(`${mon.s}/`))
+  })
+}
 
 export function monName(db: Db, c: CodeMon | string): string {
   const m = typeof c === 'string' ? { s: c } : c
@@ -46,7 +58,7 @@ export function CodeChip({ code, size = 'md' }: { code: string; size?: 'sm' | 'm
 
 /** One-line "offer X on code Y" for a Violet-only Pokémon (Hunt rows). */
 export function TradeLine({ db, entry, evolveFrom }: { db: Db; entry: ExclusiveCode; evolveFrom: string | null }) {
-  const haveOffer = usePrefs((p) => p.caught.includes(entry.scarlet.s))
+  const haveOffer = useHasCaught(entry.scarlet)
   return (
     <span className="mt-1 block text-[11px] leading-snug">
       <span aria-hidden>🔁</span> Trade on <CodeChip code={entry.code} size="sm" />{' '}
@@ -61,7 +73,7 @@ export function TradeLine({ db, entry, evolveFrom }: { db: Db; entry: ExclusiveC
 export function VioletTradeHowTo({ db, s, f }: { db: Db; s: string; f: string }) {
   const t = violetTrade(s, f)
   const dlc = usePrefs((p) => p.dlc)
-  const haveOffer = usePrefs((p) => (t ? p.caught.includes(t.entry.scarlet.s) : false))
+  const haveOffer = useHasCaught(t?.entry.scarlet ?? { s: '' })
   if (!t || (t.entry.dlc && !dlc)) return null
   const { entry, evolveFrom } = t
   return (
