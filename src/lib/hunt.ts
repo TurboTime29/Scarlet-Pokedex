@@ -2,6 +2,7 @@ import { bst, isFinal, mainForm } from '../data/db'
 import type { Db, Encounters, EvoNode, FixedSpawn, Form, Species, WildSpawn } from '../data/types'
 import { isDlcForm } from './dlc'
 import { EVO_CODES, STARTER_CODES, violetTrade, type EvoCode, type ExclusiveCode, type StarterCode } from '../data/linkCodes'
+import { FORM_NOTES } from '../data/formNotes'
 
 /** One place to catch a hunt target: a wild spawn (with odds) or a fixed spot. */
 export type Spot =
@@ -24,7 +25,20 @@ export interface HuntEntry {
   times: boolean[]
   /** How to get it when it can't be caught in the wild (then `spots` is empty). */
   via?: Via
+  /** species with several forms: each form and how to get it (any one form registers the dex entry) */
+  forms?: FormWay[]
 }
+
+/** One form of a multi-form species: its own spots, a trade for Violet-only forms, and/or a how-to note. */
+export interface FormWay {
+  form: Form
+  spots: Spot[]
+  via?: Via
+  note?: string
+}
+
+/** Forms worth listing for a Paldea species: not battle-only, not a DLC regional form. */
+export const variantForms = (s: Species) => s.forms.filter((f) => !f.battleOnly && !isDlcForm(s, f))
 
 /** Ways to register a Paldea dex entry that has no wild spawn or fixed spot in Scarlet. */
 export type Via =
@@ -66,22 +80,25 @@ const bestPct = (sp: Spot, time: number | null) => (sp.kind === 'wild' ? (time =
  */
 export function buildHunt(db: Db, enc: Record<string, Encounters>): HuntEntry[] {
   const out: HuntEntry[] = []
+  const spotsByForm = new Map<string, Map<string, Spot[]>>()
   for (const [slug, e] of Object.entries(enc)) {
     const s = db.bySlug.get(slug)
     if (!s || s.dex.paldea == null) continue
     const byForm = new Map<string, Spot[]>()
+    spotsByForm.set(slug, byForm)
     const add = (f: Form, sp: Spot) => { if (!isDlcForm(s, f)) byForm.set(f.slug, [...(byForm.get(f.slug) ?? []), sp]) }
     for (const w of e.wild) if (w.r === 'paldea' && w.v !== 'violet') add(formFor(s, w), { kind: 'wild', w })
     for (const x of e.fixed) if (x.r === 'paldea' && x.v !== 'violet' && x.where !== 'Gift' && x.where !== 'Trade') add(formFor(s, x), { kind: 'fixed', x })
-    for (const [fslug, spots] of byForm) {
-      const form = s.forms.find((f) => f.slug === fslug)!
-      spots.sort((a, b) => bestPct(b, null) - bestPct(a, null))
-      const conds = spots.map(spotCondition)
-      const shared = conds.every((c) => c) ? [...new Set(conds)] : []
-      const times = [0, 1, 2, 3].map((t) => spots.some((sp) => sp.kind === 'fixed' || sp.w.p[t] > 0))
-      const top = topEvolution(db, s)
-      out.push({ species: s, form, bst: bst(form), topBst: top ? bst(mainForm(top)) : bst(form), topName: top?.name ?? null, final: isFinal(db, s, true), spots, conditions: shared, times })
-    }
+    if (!byForm.size) continue
+    // One entry per species (any form registers the dex entry), with every form's spots.
+    for (const spots of byForm.values()) spots.sort((a, b) => bestPct(b, null) - bestPct(a, null))
+    const spots = [...byForm.values()].flat().sort((a, b) => bestPct(b, null) - bestPct(a, null))
+    const form = byForm.has(s.dexForm.paldea ?? '') ? s.forms.find((f) => f.slug === s.dexForm.paldea)! : s.forms.find((f) => byForm.has(f.slug))!
+    const conds = spots.map(spotCondition)
+    const shared = conds.every((c) => c) ? [...new Set(conds)] : []
+    const times = [0, 1, 2, 3].map((t) => spots.some((sp) => sp.kind === 'fixed' || sp.w.p[t] > 0))
+    const top = topEvolution(db, s)
+    out.push({ species: s, form, bst: bst(form), topBst: top ? bst(mainForm(top)) : bst(form), topName: top?.name ?? null, final: isFinal(db, s, true), spots, conditions: shared, times })
   }
   const covered = new Set(out.map((h) => h.species.slug))
   const ANY_TIME = [true, true, true, true]
@@ -117,6 +134,21 @@ export function buildHunt(db: Db, enc: Record<string, Encounters>): HuntEntry[] 
       const raids = [...new Set((e?.raids ?? []).filter((r) => r.r === 'paldea' && r.v !== 'violet').map((r) => r.s))].sort()
       push(s, form, { kind: 'evolve', from, how: parent.how ?? null, code, raids })
     }
+  }
+  // Multi-form species: list each form and how to get that one.
+  for (const h of out) {
+    const variants = variantForms(h.species)
+    if (variants.length < 2) continue
+    const byForm = spotsByForm.get(h.species.slug)
+    h.forms = variants.map((f) => {
+      const trade = f.ver === 'violet' ? violetTrade(h.species.slug, f.slug) : null
+      return {
+        form: f,
+        spots: byForm?.get(f.slug) ?? [],
+        ...(trade && !trade.entry.dlc ? { via: { kind: 'trade' as const, ...trade } } : {}),
+        ...(FORM_NOTES[f.slug] ? { note: FORM_NOTES[f.slug] } : {}),
+      }
+    })
   }
   return out
 }

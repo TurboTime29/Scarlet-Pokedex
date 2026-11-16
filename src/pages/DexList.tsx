@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { dexForm, formLabel, pad, thumb, useEncounters } from '../data/db'
 import { DEXES, type Db, type DexId, type Species } from '../data/types'
 import { searchSpecies } from '../lib/search'
-import { buildHunt, type Via } from '../lib/hunt'
+import { buildHunt, variantForms, type Via } from '../lib/hunt'
 import { usePrefs, type CaughtFilter } from '../store/prefs'
 import { CaughtToggle, Img, Types, VersionBadge } from '../components/ui'
 import { MethodTag } from '../components/MethodTag'
@@ -130,6 +130,7 @@ export default function DexList({ db }: { db: Db }) {
 
 function Row({ s, dex, shiny, via }: { s: Species; dex: DexId; shiny: boolean; via?: Via }) {
   const f = dexForm(s, dex)
+  const forms = dex === 'paldea' ? variantForms(s).length : 0
   return (
     <li className="dex-row flex items-center pr-1.5" style={{ borderColor: 'var(--ring)' }}>
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex min-w-0 flex-1 items-center gap-3 py-1.5 pl-3 active:bg-black/5">
@@ -144,6 +145,7 @@ function Row({ s, dex, shiny, via }: { s: Species; dex: DexId; shiny: boolean; v
             <Types types={f.types} size="sm" />
             <VersionBadge form={f} />
             {via && <MethodTag via={via} />}
+            {forms > 1 && <span className="whitespace-nowrap rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300" title="Several forms: open it to see each one and how to get it">◈ {forms} forms</span>}
           </span>
         </span>
       </Link>

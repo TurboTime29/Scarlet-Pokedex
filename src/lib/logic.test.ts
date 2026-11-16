@@ -188,6 +188,21 @@ describe('hunt list', () => {
     expect(trade('salamence')!.evolveFrom).toBe('bagon')
     expect(get('tauros-paldea-aqua-breed')).toBeUndefined() // one Tauros is enough for the dex, and Combat Breed is catchable
   })
+  it('has one entry per species, listing each form of multi-form species and how to get it', () => {
+    expect(new Set(hunt.map((h) => h.species.slug)).size).toBe(hunt.length)
+    const forms = (sp: string) => hunt.find((h) => h.species.slug === sp)!.forms!
+    const tauros = forms('tauros')
+    expect(tauros.map((x) => x.form.slug)).toEqual(['tauros-paldea-combat-breed', 'tauros-paldea-blaze-breed', 'tauros-paldea-aqua-breed'])
+    expect(tauros[1].spots.length).toBeGreaterThan(0)
+    expect(tauros[2].via?.kind).toBe('trade')
+    expect(forms('lycanroc').every((x) => x.spots.length > 0)).toBe(true)
+    expect(forms('maushold').every((x) => x.note)).toBe(true)
+    expect(forms('rotom')).toHaveLength(6)
+    expect(forms('gimmighoul').find((x) => x.form.slug === 'gimmighoul-roaming')?.note).toMatch(/Pokémon GO/)
+    expect(hunt.find((h) => h.species.slug === 'lechonk')!.forms).toBeUndefined()
+    // every form with nothing to catch has a trade or a note
+    for (const h of hunt) for (const x of h.forms ?? []) expect(x.spots.length > 0 || !!x.via || !!x.note, x.form.slug).toBe(true)
+  })
   it('says what to evolve for entries with nothing to catch', () => {
     const evolve = (slug: string) => { const v = get(slug)?.via; return v?.kind === 'evolve' ? v : undefined }
     expect(evolve('kingambit')?.from.slug).toBe('bisharp')

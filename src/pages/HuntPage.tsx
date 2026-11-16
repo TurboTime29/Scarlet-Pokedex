@@ -1,9 +1,9 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
 import { formLabel, pad, placeKey, thumb, useEncounters } from '../data/db'
-import type { Db } from '../data/types'
-import { METHOD_ORDER, buildHunt, methodOf, sortValue, spotCondition, type HuntEntry, type Method, type SortKey, type Spot, type Via } from '../lib/hunt'
+import type { Db, Species } from '../data/types'
+import { METHOD_ORDER, buildHunt, methodOf, sortValue, spotCondition, type FormWay, type HuntEntry, type Method, type SortKey, type Spot, type Via } from '../lib/hunt'
 import { TYPES, typeName } from '../lib/types'
 import { usePrefs } from '../store/prefs'
 import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
@@ -159,8 +159,10 @@ function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEn
   const value = sortKey === 'top' ? h.topBst : sortKey === 'odds' || sortKey === 'dex' ? h.bst : sortValue(h, sortKey, time)
   const wildPct = best?.kind === 'wild' ? (time == null ? Math.max(...best.w.p) : best.w.p[time]) : null
   const rar = wildPct != null ? rarity(wildPct) : null
+  const [formsOpen, setFormsOpen] = useState(false)
   return (
-    <li className="card flex items-stretch gap-2 p-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}>
+    <li className="card p-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}>
+     <div className="flex items-stretch gap-2">
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex min-w-0 flex-1 gap-2">
         <span className="flex w-12 shrink-0 flex-col items-center">
           <span className="text-[10px] font-bold tabular-nums muted" title="Paldea dex number">#{pad(s.dex.paldea!)}</span>
@@ -169,8 +171,8 @@ function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEn
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-1.5">
             <span className="font-semibold">{s.name}</span>
-            {!f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
-            {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+            {!h.forms && !f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
+            {!h.forms && f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
             {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
           </span>
           <Types types={f.types} size="sm" />
@@ -186,6 +188,16 @@ function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEn
             </span>
           )}
           <span className="mt-0.5 flex flex-wrap gap-1">
+            {h.forms && (
+              <button
+                type="button"
+                aria-expanded={formsOpen}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormsOpen(!formsOpen) }}
+                className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+              >
+                ◈ {h.forms.length} forms {formsOpen ? '▴' : '▾'}
+              </button>
+            )}
             {cond && <Badge tone="amber">{noteIcon(cond)} {short(cond)}</Badge>}
             {onlyTimes && <Badge tone="indigo">{onlyTimes.map((t) => TIME_ICON[t]).join('')} {onlyTimes.map((t) => TIME_LABEL[t]).join(' & ')} only</Badge>}
             {best?.kind === 'wild' && best.w.n && !cond && <Badge tone="plain">{noteIcon(best.w.n)} {short(best.w.n)}</Badge>}
@@ -201,7 +213,48 @@ function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEn
         {h.via ? <MethodTag via={h.via} /> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
       <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
+     </div>
+      {formsOpen && h.forms && <FormsPanel db={db} s={s} forms={h.forms} shiny={shiny} time={time} />}
     </li>
+  )
+}
+
+/** Each form of a multi-form species and how to get that one. */
+function FormsPanel({ db, s, forms, shiny, time }: { db: Db; s: Species; forms: FormWay[]; shiny: boolean; time: number | null }) {
+  return (
+    <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--ring)' }}>
+      <p className="mb-1 text-[11px] muted">Any one form fills the dex entry. Each form:</p>
+      <ul className="space-y-1.5">
+        {forms.map(({ form: f, spots: all, via, note }) => {
+          const spots = time == null ? all : all.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
+          const best = spots[0]
+          const pct = best?.kind === 'wild' ? (time == null ? Math.max(...best.w.p) : best.w.p[time]) : null
+          return (
+            <li key={f.slug}>
+              <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex gap-2">
+                <Img src={thumb(f, shiny)} alt="" size={36} className="h-9 w-9 shrink-0 object-contain" />
+                <span className="min-w-0 flex-1 text-[11px] leading-snug">
+                  <span className="flex flex-wrap items-center gap-x-1.5">
+                    <span className="text-xs font-semibold underline decoration-dotted">{formLabel(f)}</span>
+                    {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+                    {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
+                  </span>
+                  {best && (
+                    <span className="block">
+                      <span aria-hidden>{best.kind === 'wild' ? '📍' : '📌'}</span> <span className="font-semibold">{placeOf(best)}</span>
+                      <span className="muted">{best.kind === 'wild' ? ` · ${best.w.b} · Lv ${best.w.lv}` : ` · ${best.x.where === 'Fixed' ? 'fixed spot' : best.x.where} · Lv ${best.x.lv}`}{pct != null ? ` · ${pct}%` : ''}{spots.length > 1 ? ` · +${spots.length - 1} more` : ''}</span>
+                    </span>
+                  )}
+                  {!best && all.length > 0 && <span className="block muted">Not at this time of day.</span>}
+                  {via && <ViaLine db={db} via={via} slug={s.slug} />}
+                  {note && <span className="block muted">{note}</span>}
+                </span>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
