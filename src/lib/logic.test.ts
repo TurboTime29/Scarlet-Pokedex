@@ -5,7 +5,7 @@ import { defensiveMatchups, effectiveness, offensiveCoverage } from './types'
 import { findCounters } from './counters'
 import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
-import { mergeProgress, usePrefs, type ProgressDoc } from '../store/prefs'
+import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies } from './dlc'
 import { buildHunt, sortValue, spotCondition } from './hunt'
 import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
@@ -242,31 +242,5 @@ describe('hunt targets sync', () => {
     const pc = { ...base, targets: { 'tauros-paldea-blaze-breed': 200, gible: 50 } }
     expect(mergeProgress(phone, pc).targets).toEqual({ larvitar: 100, 'tauros-paldea-blaze-breed': -300, gible: 50 })
     expect(mergeProgress(base, phone).targets).toEqual(phone.targets)
-  })
-})
-
-describe('caught forms', () => {
-  const base: ProgressDoc = { version: 2, marks: {}, team: [], teamAt: 0, boosts: { charm: false, sparkling: 0, outbreak: 0, masuda: false }, boostsAt: 0, updatedAt: 1 }
-  it('syncs per-form marks, newest wins, older documents have none', () => {
-    const phone = { ...base, forms: { 'tauros/tauros-paldea-aqua-breed': 100 } }
-    const pc = { ...base, forms: { 'tauros/tauros-paldea-aqua-breed': -200, 'tauros/tauros-paldea-blaze-breed': 50 } }
-    expect(mergeProgress(phone, pc).forms).toEqual({ 'tauros/tauros-paldea-aqua-breed': -200, 'tauros/tauros-paldea-blaze-breed': 50 })
-    expect(mergeProgress(base, base).forms).toEqual({})
-  })
-  it('marking a form marks the species; un-marking the last form or the species clears both', () => {
-    const p = () => usePrefs.getState()
-    p().replaceProgress({ ...base })
-    p().toggleFormCaught('tauros', 'tauros-paldea-blaze-breed')
-    expect(p().caught).toEqual(['tauros'])
-    expect(p().caughtForms).toEqual(['tauros/tauros-paldea-blaze-breed'])
-    p().toggleFormCaught('tauros', 'tauros-paldea-combat-breed')
-    p().toggleFormCaught('tauros', 'tauros-paldea-blaze-breed')
-    expect(p().caught).toEqual(['tauros']) // Combat Breed still marked
-    p().toggleFormCaught('tauros', 'tauros-paldea-combat-breed')
-    expect(p().caught).toEqual([])
-    p().toggleFormCaught('tauros', 'tauros-paldea-aqua-breed')
-    p().toggleCaught('tauros')
-    expect(p().caught).toEqual([])
-    expect(p().caughtForms).toEqual([])
   })
 })

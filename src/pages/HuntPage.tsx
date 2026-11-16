@@ -1,11 +1,11 @@
-import { useCallback, useMemo, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
 import { formLabel, pad, placeKey, thumb, useEncounters } from '../data/db'
 import type { Db } from '../data/types'
 import { METHOD_ORDER, buildHunt, methodOf, sortValue, spotCondition, type HuntEntry, type Method, type SortKey, type Spot, type Via } from '../lib/hunt'
 import { TYPES, typeName } from '../lib/types'
-import { formKey, usePrefs } from '../store/prefs'
+import { usePrefs } from '../store/prefs'
 import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
 import { CodeChip, TradeLine, monName } from '../components/LinkCodes'
@@ -46,36 +46,25 @@ export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
 
 export default function HuntPage({ db }: { db: Db }) {
   const enc = useEncounters()
-  const { caught, caughtForms, shiny, wanted } = usePrefs()
+  const { caught, shiny, wanted } = usePrefs()
   const wantedSet = useMemo(() => new Set(wanted), [wanted])
   const st = useHunt()
   const set = useHunt.setState
   const caughtSet = useMemo(() => new Set(caught), [caught])
-  const caughtFormSet = useMemo(() => new Set(caughtForms), [caughtForms])
   const all = useMemo(() => (enc ? buildHunt(db, enc) : []), [db, enc])
-  // species with several rows (Tauros breeds, Squawkabilly plumages…): each row is ticked off on its own
-  const multi = useMemo(() => {
-    const n = new Map<string, number>()
-    for (const h of all) n.set(h.species.slug, (n.get(h.species.slug) ?? 0) + 1)
-    return new Set([...n].filter(([, c]) => c > 1).map(([s]) => s))
-  }, [all])
-  const isCaught = useCallback(
-    (h: HuntEntry) => (multi.has(h.species.slug) ? caughtFormSet.has(formKey(h.species.slug, h.form.slug)) : caughtSet.has(h.species.slug)),
-    [multi, caughtSet, caughtFormSet],
-  )
 
   // everything but the method filter, so the method counts match what each one would show
   const filtered = useMemo(() => {
     const q = st.q.trim().toLowerCase()
     return all
-      .filter((h) => !st.notCaught || !isCaught(h))
+      .filter((h) => !st.notCaught || !caughtSet.has(h.species.slug))
       .filter((h) => !st.finalOnly || h.final)
       .filter((h) => !st.targetsOnly || wantedSet.has(h.form.slug))
       .filter((h) => st.time == null || h.times[st.time])
       .filter((h) => !st.type || h.form.types.includes(st.type))
       .filter((h) => !q || h.species.name.toLowerCase().includes(q))
       .sort((a, b) => sortValue(b, st.sort, st.time) - sortValue(a, st.sort, st.time) || b.bst - a.bst)
-  }, [all, st.q, st.notCaught, st.finalOnly, st.targetsOnly, st.time, st.type, st.sort, isCaught, wantedSet])
+  }, [all, st.q, st.notCaught, st.finalOnly, st.targetsOnly, st.time, st.type, st.sort, caughtSet, wantedSet])
   const list = useMemo(() => (st.how ? filtered.filter((h) => methodOf(h) === st.how) : filtered), [filtered, st.how])
   // counted per species (forms like Squawkabilly's plumages are one dex entry)
   const byMethod = useMemo(() => {
@@ -112,7 +101,7 @@ export default function HuntPage({ db }: { db: Db }) {
           </label>
         </div>
         <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
-          <button className="chip" aria-pressed={st.targetsOnly} onClick={() => set({ targetsOnly: !st.targetsOnly })}>★ My targets{wanted.length ? ` (${all.filter((h) => wantedSet.has(h.form.slug) && (!st.notCaught || !isCaught(h))).length})` : ''}</button>
+          <button className="chip" aria-pressed={st.targetsOnly} onClick={() => set({ targetsOnly: !st.targetsOnly })}>★ My targets{wanted.length ? ` (${all.filter((h) => wantedSet.has(h.form.slug) && (!st.notCaught || !caughtSet.has(h.species.slug))).length})` : ''}</button>
           <button className="chip" aria-pressed={st.notCaught} onClick={() => set({ notCaught: !st.notCaught })}>Not caught yet</button>
           <button className="chip" aria-pressed={st.finalOnly} onClick={() => set({ finalOnly: !st.finalOnly })}>Fully evolved</button>
           <span className="mx-0.5 w-px shrink-0" style={{ background: 'var(--ring)' }} />
@@ -152,7 +141,7 @@ export default function HuntPage({ db }: { db: Db }) {
       {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
       <ul className="space-y-1.5">
-        {list.map((h) => <HuntRow key={h.form.slug} db={db} h={h} multi={multi.has(h.species.slug)} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
+        {list.map((h) => <HuntRow key={h.form.slug} db={db} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
       </ul>
       {!list.length && <p className="py-10 text-center text-sm muted">{st.notCaught ? 'Nothing left with these filters — nice work!' : 'No Pokémon match these filters.'}</p>}
     </div>
@@ -165,7 +154,7 @@ function placeOf(sp: Spot): string {
   return sub ? `${loc} · ${sub}` : loc
 }
 
-function HuntRow({ db, h, multi, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEntry; multi: boolean; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
+function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
   const { species: s, form: f } = h
   // best spot for the chosen time (fixed spots always count)
   const spots = time == null ? h.spots : h.spots.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
@@ -185,7 +174,7 @@ function HuntRow({ db, h, multi, sortKey, sortShort, time, shiny }: { db: Db; h:
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-1.5">
             <span className="font-semibold">{s.name}</span>
-            {(!f.default || multi) && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
+            {!f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
             {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
             {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
           </span>
@@ -216,7 +205,7 @@ function HuntRow({ db, h, multi, sortKey, sortShort, time, shiny }: { db: Db; h:
         </span>
         {h.via ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${METHOD[h.via.kind].pill}`}>{h.via.kind === 'special' ? (h.via.gift ? 'gift' : 'special') : h.via.kind}</span> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
-      <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} form={multi ? f.slug : undefined} size={22} /></span>
+      <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
     </li>
   )
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TYPE_COLORS, typeName, type Type } from '../lib/types'
 import type { Form } from '../data/types'
-import { formKey, usePrefs } from '../store/prefs'
+import { usePrefs } from '../store/prefs'
 
 export function TypeBadge({ type, size = 'md' }: { type: string; size?: 'sm' | 'md' | 'lg' }) {
   const cls = size === 'sm' ? 'h-5 min-w-14 px-1.5 text-[10px]' : size === 'lg' ? 'h-7 min-w-20 px-3 text-xs' : 'h-6 min-w-16 px-2 text-[11px]'
@@ -22,20 +22,18 @@ export function VersionBadge({ form, long }: { form: Form; long?: boolean }) {
   return null
 }
 
-/** Poké Ball toggle for "caught": the species, or one form of it when `form` is given. */
-export function CaughtToggle({ species, form, size = 30 }: { species: string; form?: string; size?: number }) {
-  const caught = usePrefs((s) => (form ? s.caughtForms.includes(formKey(species, form)) : s.caught.includes(species)))
-  const toggleSpecies = usePrefs((s) => s.toggleCaught)
-  const toggleForm = usePrefs((s) => s.toggleFormCaught)
+/** Poké Ball toggle for "caught". */
+export function CaughtToggle({ species, size = 30 }: { species: string; size?: number }) {
+  const caught = usePrefs((s) => s.caught.includes(species))
+  const toggle = usePrefs((s) => s.toggleCaught)
   const [anim, setAnim] = useState(0)
-  const label = caught ? `Caught${form ? ' (this form)' : ''} — tap to unmark` : form ? 'Mark this form as caught' : 'Mark as caught'
   return (
     <button
       type="button"
       aria-pressed={caught}
-      aria-label={label}
-      title={label}
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (form) toggleForm(species, form); else toggleSpecies(species); setAnim((n) => n + 1) }}
+      aria-label={caught ? 'Caught (tap to unmark)' : 'Mark as caught'}
+      title={caught ? 'Caught' : 'Mark as caught'}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(species); setAnim((n) => n + 1) }}
       className="grid shrink-0 place-items-center rounded-full p-1.5"
       style={{ width: size + 12, height: size + 12 }}
     >
