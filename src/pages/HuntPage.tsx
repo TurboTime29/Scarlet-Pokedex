@@ -8,6 +8,7 @@ import { TYPES, typeName } from '../lib/types'
 import { usePrefs } from '../store/prefs'
 import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
+import { TradeLine } from '../components/LinkCodes'
 
 const SORTS: { id: SortKey; label: string; short: string }[] = [
   { id: 'bst', label: 'Base stat total (BST)', short: 'BST' },
@@ -23,8 +24,8 @@ const SORTS: { id: SortKey; label: string; short: string }[] = [
 ]
 
 // Hunt settings survive leaving the tab (not saved across app restarts on purpose: it's a session tool).
-const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; targetsOnly: boolean; time: number | null; type: string; q: string }>(() => ({
-  sort: 'bst', notCaught: true, finalOnly: false, targetsOnly: false, time: null, type: '', q: '',
+const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; targetsOnly: boolean; trades: boolean; time: number | null; type: string; q: string }>(() => ({
+  sort: 'bst', notCaught: true, finalOnly: false, targetsOnly: false, trades: true, time: null, type: '', q: '',
 }))
 
 export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
@@ -51,6 +52,7 @@ export default function HuntPage({ db }: { db: Db }) {
       .filter((h) => !st.notCaught || !caughtSet.has(h.species.slug))
       .filter((h) => !st.finalOnly || h.final)
       .filter((h) => !st.targetsOnly || wantedSet.has(h.form.slug))
+      .filter((h) => st.trades || !h.trade)
       .filter((h) => st.time == null || h.times[st.time])
       .filter((h) => !st.type || h.form.types.includes(st.type))
       .filter((h) => !q || h.species.name.toLowerCase().includes(q))
@@ -86,6 +88,7 @@ export default function HuntPage({ db }: { db: Db }) {
           <button className="chip" aria-pressed={st.targetsOnly} onClick={() => set({ targetsOnly: !st.targetsOnly })}>★ My targets{wanted.length ? ` (${all.filter((h) => wantedSet.has(h.form.slug) && (!st.notCaught || !caughtSet.has(h.species.slug))).length})` : ''}</button>
           <button className="chip" aria-pressed={st.notCaught} onClick={() => set({ notCaught: !st.notCaught })}>Not caught yet</button>
           <button className="chip" aria-pressed={st.finalOnly} onClick={() => set({ finalOnly: !st.finalOnly })}>Fully evolved</button>
+          <button className="chip" aria-pressed={st.trades} onClick={() => set({ trades: !st.trades })}>🔁 Violet trades</button>
           <span className="mx-0.5 w-px shrink-0" style={{ background: 'var(--ring)' }} />
           <button className="chip" aria-pressed={st.time == null} onClick={() => set({ time: null })}>Any time</button>
           {[0, 1, 2, 3].map((t) => (
@@ -96,14 +99,15 @@ export default function HuntPage({ db }: { db: Db }) {
 
       <p className="text-xs muted">
         <b style={{ color: 'var(--text)' }}>{list.length}</b> Pokémon you can catch yourself in Scarlet’s base game{st.time != null ? ` ${st.time === 3 ? 'at night' : `in the ${TIME_LABEL[st.time].toLowerCase()}`}` : ''}, sorted by {sort.id === 'odds' || sort.id === 'dex' ? sort.label.toLowerCase() : sort.label}.
-        {' '}You’ve caught {caughtCount} of {all.length}. Wild spawns and fixed spots only — no gifts, trades, raids, Violet or DLC.
+        {' '}You’ve caught {caughtCount} of {all.length}. Wild spawns and fixed spots only — no gifts, raids or DLC.{st.trades ? ' Violet-only Pokémon show the link code to trade for them.' : ''}
+        {' '}<Link to="/trades" className="font-semibold text-scarlet-600 underline">All link codes</Link>
       </p>
 
       {st.targetsOnly && list.length > 0 && <BestAreas list={list} time={st.time} />}
       {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
       <ul className="space-y-1.5">
-        {list.map((h) => <HuntRow key={h.form.slug} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
+        {list.map((h) => <HuntRow key={h.form.slug} db={db} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
       </ul>
       {!list.length && <p className="py-10 text-center text-sm muted">{st.notCaught ? 'Nothing left to catch with these filters — nice work!' : 'No Pokémon match these filters.'}</p>}
     </div>
@@ -116,7 +120,7 @@ function placeOf(sp: Spot): string {
   return sub ? `${loc} · ${sub}` : loc
 }
 
-function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
+function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
   const { species: s, form: f } = h
   // best spot for the chosen time (fixed spots always count)
   const spots = time == null ? h.spots : h.spots.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
@@ -138,8 +142,10 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
             <span className="font-semibold">{s.name}</span>
             {!f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
             {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+            {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
           </span>
           <Types types={f.types} size="sm" />
+          {h.trade && <TradeLine db={db} entry={h.trade.entry} evolveFrom={h.trade.evolveFrom} />}
           {best && (
             <span className="mt-1 block text-[11px] leading-snug">
               <span aria-hidden>{best.kind === 'wild' ? '📍' : '📌'}</span>{' '}
@@ -163,7 +169,7 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
           <span className="block text-lg font-black tabular-nums">{value}</span>
           <span className="block text-[9px] font-bold uppercase muted">{sortKey === 'odds' || sortKey === 'dex' ? 'BST' : sortShort}</span>
         </span>
-        {rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
+        {h.trade ? <span className="rounded-full bg-violet-sv/15 px-1.5 py-0.5 text-[9px] font-bold text-violet-sv">trade</span> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
       <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
     </li>

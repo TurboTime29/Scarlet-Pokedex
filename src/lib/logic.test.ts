@@ -8,6 +8,7 @@ import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies } from './dlc'
 import { buildHunt, sortValue, spotCondition } from './hunt'
+import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -145,10 +146,10 @@ describe('hunt list', () => {
   const enc = JSON.parse(readFileSync(new URL('../../public/data/encounters.json', import.meta.url), 'utf-8'))
   const hunt = buildHunt(db, enc)
   const get = (slug: string) => hunt.find((h) => h.form.slug === slug)
-  it('only has Pokémon you can catch yourself in base-game Scarlet', () => {
+  it('only has Pokémon you can catch yourself in base-game Scarlet, plus Violet trades', () => {
     expect(hunt.length).toBeGreaterThan(300)
-    expect(hunt.every((h) => h.form.ver !== 'violet' && !isDlcForm(h.species, h.form))).toBe(true)
-    expect(get('dreepy')).toBeUndefined() // Violet only
+    expect(hunt.every((h) => (h.form.ver !== 'violet') === !h.trade && !isDlcForm(h.species, h.form))).toBe(true)
+    expect(hunt.filter((h) => h.trade).every((h) => h.spots.length === 0 && !h.trade!.entry.dlc)).toBe(true)
     expect(get('sprigatito')).toBeUndefined() // gift, not caught
     expect(get('okidogi')).toBeUndefined() // DLC
   })
@@ -164,6 +165,51 @@ describe('hunt list', () => {
   it('sorts by BST', () => {
     const top = [...hunt].sort((a, b) => sortValue(b, 'bst', null) - sortValue(a, 'bst', null))[0]
     expect(top.bst).toBeGreaterThanOrEqual(600)
+  })
+  it('lists every base-game Violet-only Pokémon with the code to trade for it', () => {
+    const violet = db.species.filter((s) => s.dex.paldea != null).flatMap((s) => s.forms.filter((f) => f.ver === 'violet' && !f.battleOnly && !isDlcForm(s, f)))
+    expect(violet.length).toBeGreaterThan(20)
+    for (const f of violet) expect(get(f.slug)?.trade, f.slug).toBeDefined()
+    expect(get('dreepy')!.trade!.entry.code).toBe('0633 0885')
+    expect(get('dreepy')!.trade!.entry.scarlet.s).toBe('deino')
+    expect(get('salamence')!.trade!.evolveFrom).toBe('bagon')
+    expect(get('tauros-paldea-aqua-breed')!.trade!.entry.scarlet.f).toBe('tauros-paldea-blaze-breed')
+    expect(sortValue(get('dreepy')!, 'odds', null)).toBeLessThan(0) // trades sort after everything catchable
+  })
+})
+
+describe('link codes', () => {
+  const db = loadDb()
+  it('every Pokémon and form in the code list exists', () => {
+    const mons = [
+      ...EXCLUSIVE_CODES.flatMap((e) => [e.scarlet, e.violet, ...(e.violetLine ?? []).map((s) => ({ s }))]),
+      ...EVO_CODES.flatMap((e) => [e.from, e.into]),
+      ...STARTER_CODES.flatMap((e) => [{ s: e.a }, { s: e.b }]),
+    ] as { s: string; f?: string }[]
+    for (const m of mons) {
+      const s = db.bySlug.get(m.s)
+      expect(s, m.s).toBeDefined()
+      if (m.f) expect(s!.forms.some((f) => f.slug === m.f), m.f).toBe(true)
+    }
+  })
+  it('codes are 8 digits', () => {
+    for (const e of [...EXCLUSIVE_CODES, ...EVO_CODES, ...STARTER_CODES]) expect(e.code).toMatch(/^\d{4} \d{4}$/)
+  })
+  it('the Violet side is Violet-only and the Scarlet side is not', () => {
+    const form = (m: { s: string; f?: string }) => db.bySlug.get(m.s)!.forms.find((f) => (m.f ? f.slug === m.f : f.default))!
+    for (const e of EXCLUSIVE_CODES) {
+      const vf = form(e.violet)
+      const sf = form(e.scarlet)
+      expect(vf.ver, e.violet.s).toBe('violet')
+      expect(sf.ver, e.scarlet.s).not.toBe('violet')
+    }
+  })
+  it('finds codes for a Pokémon page', () => {
+    expect(codesFor('larvitar', 'larvitar').exclusive[0].violet.s).toBe('bagon')
+    expect(codesFor('scizor', 'scizor').evo[0].item).toBe('Metal Coat')
+    expect(codesFor('graveler', 'graveler-alola').evo.map((e) => e.into.f)).toEqual(['golem-alola'])
+    expect(codesFor('sprigatito', 'sprigatito').starter).toHaveLength(2)
+    expect(violetTrade('tauros', 'tauros-paldea-combat-breed')).toBeNull()
   })
 })
 

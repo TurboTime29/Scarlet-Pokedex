@@ -13,7 +13,7 @@ A phone-friendly Pokédex for **Pokémon Scarlet** (Paldea, Kitakami and Blueber
 - "Weak against" / "Strong against" type matchups
 - **Beat a type**: pick an opponent type (or two) and get the best counters, optionally only from Pokémon you've caught
 - Mark Pokémon as caught, build a team of 6 and see its shared weaknesses and coverage gaps
-- Violet-only Pokémon are clearly flagged as not catchable in Scarlet
+- Violet-only Pokémon are clearly flagged as not catchable in Scarlet, with the universal link code to trade for them (Hunt tab, their page, and a full code list)
 
 Live: https://turbotime29.github.io/Scarlet-Pokedex/
 
