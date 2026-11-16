@@ -7,7 +7,7 @@ import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies } from './dlc'
-import { buildHunt, sortValue, spotCondition } from './hunt'
+import { buildHunt, methodOf, sortValue, spotCondition } from './hunt'
 import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
 
 function loadDb(): Db {
@@ -153,6 +153,10 @@ describe('hunt list', () => {
     expect(paldea.filter((s) => !inHunt.has(s.slug)).map((s) => s.slug)).toEqual([])
     expect(hunt.every((h) => !isDlcForm(h.species, h.form))).toBe(true)
     expect(hunt.every((h) => (h.spots.length > 0) === !h.via)).toBe(true)
+    // each dex entry has exactly one way to get it, so the per-method counts add up to the dex
+    const methods = new Map<string, Set<string>>()
+    for (const h of hunt) methods.set(h.species.slug, (methods.get(h.species.slug) ?? new Set()).add(methodOf(h)))
+    expect([...methods].filter(([, m]) => m.size > 1).map(([s]) => s)).toEqual([])
     expect(hunt.filter((h) => h.form.ver === 'violet').every((h) => h.via?.kind === 'trade')).toBe(true)
     expect(get('sprigatito')?.via).toMatchObject({ kind: 'special', gift: true })
     const sprig = get('sprigatito')!.via
@@ -175,14 +179,14 @@ describe('hunt list', () => {
     expect(top.bst).toBeGreaterThanOrEqual(600)
   })
   it('lists every base-game Violet-only Pokémon with the code to trade for it', () => {
-    const violet = db.species.filter((s) => s.dex.paldea != null).flatMap((s) => s.forms.filter((f) => f.ver === 'violet' && !f.battleOnly && !isDlcForm(s, f)))
+    const violet = db.species.filter((s) => s.dex.paldea != null && s.slug !== 'tauros').flatMap((s) => s.forms.filter((f) => f.ver === 'violet' && !f.battleOnly && !isDlcForm(s, f)))
     expect(violet.length).toBeGreaterThan(20)
     const trade = (slug: string) => { const v = get(slug)?.via; return v?.kind === 'trade' ? v : undefined }
     for (const f of violet) expect(trade(f.slug), f.slug).toBeDefined()
     expect(trade('dreepy')!.entry.code).toBe('0633 0885')
     expect(trade('dreepy')!.entry.scarlet.s).toBe('deino')
     expect(trade('salamence')!.evolveFrom).toBe('bagon')
-    expect(trade('tauros-paldea-aqua-breed')!.entry.scarlet.f).toBe('tauros-paldea-blaze-breed')
+    expect(get('tauros-paldea-aqua-breed')).toBeUndefined() // one Tauros is enough for the dex, and Combat Breed is catchable
   })
   it('says what to evolve for entries with nothing to catch', () => {
     const evolve = (slug: string) => { const v = get(slug)?.via; return v?.kind === 'evolve' ? v : undefined }

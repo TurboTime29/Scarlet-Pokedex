@@ -60,7 +60,7 @@ const bestPct = (sp: Spot, time: number | null) => (sp.kind === 'wild' ? (time =
 /**
  * Every Paldea dex entry and how to get it in base-game Scarlet, one entry per species form:
  * - catch: wild spawns + fixed spots (no gifts, trades, raids, Violet-only or DLC forms)
- * - trade: Violet-only forms, with the universal link code
+ * - trade: Violet-only species, with the universal link code
  * - evolve: species with nothing to catch, from their pre-evolution
  * - special: gifts and one-time encounters (first partners, Koraidon, the treasures of ruin)
  */
@@ -91,7 +91,10 @@ export function buildHunt(db: Db, enc: Record<string, Encounters>): HuntEntry[] 
   }
   for (const s of db.species) {
     if (s.dex.paldea == null) continue
-    // Violet-only forms: trade for them
+    // A dex entry needs only one form, so a Violet-only form of a species you can already catch
+    // (Aqua Breed Tauros) isn't listed.
+    if (covered.has(s.slug)) continue
+    // Violet-only species: trade for them
     for (const form of s.forms) {
       if (form.ver !== 'violet' || form.battleOnly || isDlcForm(s, form)) continue
       const trade = violetTrade(s.slug, form.slug)
