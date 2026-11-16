@@ -9,6 +9,7 @@ import { usePrefs } from '../store/prefs'
 import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
 import { CodeChip, TradeLine, monName } from '../components/LinkCodes'
+import { METHOD, MethodTag } from '../components/MethodTag'
 
 const SORTS: { id: SortKey; label: string; short: string }[] = [
   { id: 'bst', label: 'Base stat total (BST)', short: 'BST' },
@@ -28,12 +29,6 @@ const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; 
   sort: 'dex', notCaught: true, finalOnly: false, targetsOnly: false, how: null, time: null, type: '', q: '',
 }))
 
-const METHOD: Record<Method, { icon: string; label: string; pill: string }> = {
-  catch: { icon: '🎯', label: 'Catch', pill: '' },
-  evolve: { icon: '🧬', label: 'Evolve', pill: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
-  trade: { icon: '🔁', label: 'Trade', pill: 'bg-violet-sv/15 text-violet-sv' },
-  special: { icon: '🎁', label: 'Gift & special', pill: 'bg-amber-500/15 text-amber-800 dark:text-amber-200' },
-}
 
 export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
   return (
@@ -203,7 +198,7 @@ function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEn
           <span className="block text-lg font-black tabular-nums">{value}</span>
           <span className="block text-[9px] font-bold uppercase muted">{sortKey === 'odds' || sortKey === 'dex' ? 'BST' : sortShort}</span>
         </span>
-        {h.via ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${METHOD[h.via.kind].pill}`}>{h.via.kind === 'special' ? (h.via.gift ? 'gift' : 'special') : h.via.kind}</span> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
+        {h.via ? <MethodTag via={h.via} /> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
       <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
     </li>

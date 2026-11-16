@@ -27,7 +27,6 @@ export interface ProgressDoc {
 
 interface Prefs extends Omit<ProgressDoc, 'version'> {
   shiny: boolean
-  hideViolet: boolean
   dex: DexId
   filter: CaughtFilter
   /** species slugs marked as caught (derived from marks) */
@@ -38,7 +37,6 @@ interface Prefs extends Omit<ProgressDoc, 'version'> {
   setBoosts: (b: Partial<ShinyBoosts>) => void
   setDlc: (v: boolean) => void
   setShiny: (v: boolean) => void
-  setHideViolet: (v: boolean) => void
   setDex: (d: DexId) => void
   setFilter: (f: CaughtFilter) => void
   toggleCaught: (species: string) => void
@@ -66,7 +64,6 @@ export const usePrefs = create<Prefs>()(
         set({ marks, caught: caughtOf(marks), updatedAt: now(), ...extra })
       return {
         shiny: false,
-        hideViolet: false,
         dex: 'paldea',
         filter: 'all',
         marks: {},
@@ -87,7 +84,6 @@ export const usePrefs = create<Prefs>()(
         setBoosts: (b) => set((s) => ({ boosts: { ...s.boosts, ...b }, boostsAt: now(), updatedAt: now() })),
         setDlc: (dlc) => set((s) => ({ dlc, dlcAt: now(), updatedAt: now(), dex: dlc ? s.dex : 'paldea' })),
         setShiny: (shiny) => set({ shiny }),
-        setHideViolet: (hideViolet) => set({ hideViolet }),
         setDex: (dex) => set({ dex }),
         setFilter: (filter) => set({ filter }),
         toggleCaught: (sp) => {
@@ -132,7 +128,7 @@ export const usePrefs = create<Prefs>()(
       name: 'scarlet-dex',
       version: 2,
       partialize: (s) => ({
-        shiny: s.shiny, hideViolet: s.hideViolet, dex: s.dex, filter: s.filter,
+        shiny: s.shiny, dex: s.dex, filter: s.filter,
         marks: s.marks, team: s.team, teamAt: s.teamAt, boosts: s.boosts, boostsAt: s.boostsAt, dlc: s.dlc, dlcAt: s.dlcAt, targets: s.targets, updatedAt: s.updatedAt,
       }),
       // v1 stored a plain caught list: give those marks an old timestamp so any cloud change wins over them
