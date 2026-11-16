@@ -1,6 +1,8 @@
 import { bst, isFinal, mainForm } from '../data/db'
 import type { Db, Encounters, EvoNode, FixedSpawn, Form, Species, WildSpawn } from '../data/types'
 import { isDlcForm } from './dlc'
+import { EVO_CODES, STARTER_CODES, violetTrade, type EvoCode, type ExclusiveCode, type StarterCode } from '../data/linkCodes'
+import { FORM_NOTES } from '../data/formNotes'
 
 /** One place to catch a hunt target: a wild spawn (with odds) or a fixed spot. */
 export type Spot =
@@ -21,7 +23,36 @@ export interface HuntEntry {
   conditions: string[]
   /** times of day it can be caught at all (0 morning … 3 night); fixed spots count as any time */
   times: boolean[]
+  /** How to get it when it can't be caught in the wild (then `spots` is empty). */
+  via?: Via
+  /** species with several forms: each form and how to get it (any one form registers the dex entry) */
+  forms?: FormWay[]
 }
+
+/** One form of a multi-form species: its own spots, a trade for Violet-only forms, and/or a how-to note. */
+export interface FormWay {
+  form: Form
+  spots: Spot[]
+  via?: Via
+  note?: string
+}
+
+/** Forms worth listing for a Paldea species: not battle-only, not a DLC regional form. */
+export const variantForms = (s: Species) => s.forms.filter((f) => !f.battleOnly && !isDlcForm(s, f))
+
+/** Ways to register a Paldea dex entry that has no wild spawn or fixed spot in Scarlet. */
+export type Via =
+  /** Violet-only: trade on this link code (evolveFrom = trade for that one, then evolve) */
+  | { kind: 'trade'; entry: ExclusiveCode; evolveFrom: string | null }
+  /** evolve `from`; `code` = mirror-trade link code for trade evolutions; `raids` = Tera Raid star levels it also appears in */
+  | { kind: 'evolve'; from: Species; how: string | null; code: EvoCode | null; raids: number[] }
+  /** gift or one-time story encounter, with how-to steps; `codes` = starter swap codes */
+  | { kind: 'special'; gift: boolean; group: string; loc: string; steps: string[]; codes: StarterCode[] }
+
+export type Method = 'catch' | 'evolve' | 'trade' | 'special'
+export const methodOf = (h: HuntEntry): Method => h.via?.kind ?? 'catch'
+/** easiest first */
+export const METHOD_ORDER: Method[] = ['catch', 'evolve', 'trade', 'special']
 
 export const STAT_KEYS = ['bst', 'hp', 'atk', 'def', 'spa', 'spd', 'spe', 'top', 'odds', 'dex'] as const
 export type SortKey = (typeof STAT_KEYS)[number]
@@ -41,29 +72,99 @@ export function spotCondition(sp: Spot): string {
 const bestPct = (sp: Spot, time: number | null) => (sp.kind === 'wild' ? (time == null ? Math.max(...sp.w.p) : sp.w.p[time]) : -1)
 
 /**
- * Everything you can catch yourself in base-game Scarlet (Paldea wild spawns + fixed spots; no gifts,
- * trades, raids, Violet-only or DLC forms), one entry per species form.
+ * Every Paldea dex entry and how to get it in base-game Scarlet, one entry per species form:
+ * - catch: wild spawns + fixed spots (no gifts, trades, raids, Violet-only or DLC forms)
+ * - trade: Violet-only species, with the universal link code
+ * - evolve: species with nothing to catch, from their pre-evolution
+ * - special: gifts and one-time encounters (first partners, Koraidon, the treasures of ruin)
  */
 export function buildHunt(db: Db, enc: Record<string, Encounters>): HuntEntry[] {
   const out: HuntEntry[] = []
+  const spotsByForm = new Map<string, Map<string, Spot[]>>()
   for (const [slug, e] of Object.entries(enc)) {
     const s = db.bySlug.get(slug)
     if (!s || s.dex.paldea == null) continue
     const byForm = new Map<string, Spot[]>()
+    spotsByForm.set(slug, byForm)
     const add = (f: Form, sp: Spot) => { if (!isDlcForm(s, f)) byForm.set(f.slug, [...(byForm.get(f.slug) ?? []), sp]) }
     for (const w of e.wild) if (w.r === 'paldea' && w.v !== 'violet') add(formFor(s, w), { kind: 'wild', w })
     for (const x of e.fixed) if (x.r === 'paldea' && x.v !== 'violet' && x.where !== 'Gift' && x.where !== 'Trade') add(formFor(s, x), { kind: 'fixed', x })
-    for (const [fslug, spots] of byForm) {
-      const form = s.forms.find((f) => f.slug === fslug)!
-      spots.sort((a, b) => bestPct(b, null) - bestPct(a, null))
-      const conds = spots.map(spotCondition)
-      const shared = conds.every((c) => c) ? [...new Set(conds)] : []
-      const times = [0, 1, 2, 3].map((t) => spots.some((sp) => sp.kind === 'fixed' || sp.w.p[t] > 0))
-      const top = topEvolution(db, s)
-      out.push({ species: s, form, bst: bst(form), topBst: top ? bst(mainForm(top)) : bst(form), topName: top?.name ?? null, final: isFinal(db, s, true), spots, conditions: shared, times })
+    if (!byForm.size) continue
+    // One entry per species (any form registers the dex entry), with every form's spots.
+    for (const spots of byForm.values()) spots.sort((a, b) => bestPct(b, null) - bestPct(a, null))
+    const spots = [...byForm.values()].flat().sort((a, b) => bestPct(b, null) - bestPct(a, null))
+    const form = byForm.has(s.dexForm.paldea ?? '') ? s.forms.find((f) => f.slug === s.dexForm.paldea)! : s.forms.find((f) => byForm.has(f.slug))!
+    const conds = spots.map(spotCondition)
+    const shared = conds.every((c) => c) ? [...new Set(conds)] : []
+    const times = [0, 1, 2, 3].map((t) => spots.some((sp) => sp.kind === 'fixed' || sp.w.p[t] > 0))
+    const top = topEvolution(db, s)
+    out.push({ species: s, form, bst: bst(form), topBst: top ? bst(mainForm(top)) : bst(form), topName: top?.name ?? null, final: isFinal(db, s, true), spots, conditions: shared, times })
+  }
+  const covered = new Set(out.map((h) => h.species.slug))
+  const ANY_TIME = [true, true, true, true]
+  const push = (s: Species, form: Form, via: Via) => {
+    const top = topEvolution(db, s)
+    out.push({ species: s, form, bst: bst(form), topBst: top ? bst(mainForm(top)) : bst(form), topName: top?.name ?? null, final: isFinal(db, s, true), spots: [], conditions: [], times: ANY_TIME, via })
+  }
+  for (const s of db.species) {
+    if (s.dex.paldea == null) continue
+    // A dex entry needs only one form, so a Violet-only form of a species you can already catch
+    // (Aqua Breed Tauros) isn't listed.
+    if (covered.has(s.slug)) continue
+    // Violet-only species: trade for them
+    for (const form of s.forms) {
+      if (form.ver !== 'violet' || form.battleOnly || isDlcForm(s, form)) continue
+      const trade = violetTrade(s.slug, form.slug)
+      if (trade && !trade.entry.dlc) { push(s, form, { kind: 'trade', ...trade }); covered.add(s.slug) }
+    }
+    if (covered.has(s.slug)) continue
+    const form = s.forms.find((f) => f.slug === s.dexForm.paldea) ?? mainForm(s)
+    if (form.ver === 'violet') continue
+    const e = enc[s.slug]
+    const special = e?.special?.find((x) => x.r === 'paldea' && x.v !== 'violet')
+    if (special) {
+      const gift = !!e?.fixed.some((x) => x.r === 'paldea' && x.where === 'Gift')
+      push(s, form, { kind: 'special', gift, group: special.group, loc: special.loc, steps: special.steps, codes: STARTER_CODES.filter((c) => c.a === s.slug || c.b === s.slug) })
+      continue
+    }
+    const parent = preEvolution(db, s)
+    if (parent) {
+      const from = db.bySlug.get(parent.s)!
+      const code = EVO_CODES.find((c) => c.into.s === s.slug && (!c.into.f || c.into.f === form.slug) && !c.dlc) ?? null
+      const raids = [...new Set((e?.raids ?? []).filter((r) => r.r === 'paldea' && r.v !== 'violet').map((r) => r.s))].sort()
+      push(s, form, { kind: 'evolve', from, how: parent.how ?? null, code, raids })
     }
   }
+  // Multi-form species: list each form and how to get that one.
+  for (const h of out) {
+    const variants = variantForms(h.species)
+    if (variants.length < 2) continue
+    const byForm = spotsByForm.get(h.species.slug)
+    h.forms = variants.map((f) => {
+      const trade = f.ver === 'violet' ? violetTrade(h.species.slug, f.slug) : null
+      return {
+        form: f,
+        spots: byForm?.get(f.slug) ?? [],
+        ...(trade && !trade.entry.dlc ? { via: { kind: 'trade' as const, ...trade } } : {}),
+        ...(FORM_NOTES[f.slug] ? { note: FORM_NOTES[f.slug] } : {}),
+      }
+    })
+  }
   return out
+}
+
+/** The species this one evolves from, and how (from the evolution tree). */
+function preEvolution(db: Db, s: Species): { s: string; how?: string } | null {
+  if (s.chain == null) return null
+  const walk = (n: EvoNode): { s: string; how?: string } | null => {
+    for (const k of n.to ?? []) {
+      if (k.s === s.slug) return { s: n.s, how: k.how }
+      const r = walk(k)
+      if (r) return r
+    }
+    return null
+  }
+  return walk(db.evolutions[s.chain])
 }
 
 /** Highest-BST base-game evolution reachable from this species (null if it is already final). */
@@ -89,7 +190,7 @@ const STAT_INDEX: Partial<Record<SortKey, number>> = { hp: 0, atk: 1, def: 2, sp
 export function sortValue(h: HuntEntry, key: SortKey, time: number | null): number {
   if (key === 'bst') return h.bst
   if (key === 'top') return h.topBst
-  if (key === 'odds') return Math.max(...h.spots.map((sp) => bestPct(sp, time)))
+  if (key === 'odds') return h.spots.length ? Math.max(...h.spots.map((sp) => bestPct(sp, time))) : -2 - METHOD_ORDER.indexOf(methodOf(h))
   if (key === 'dex') return -(h.species.dex.paldea ?? 999)
   return h.form.stats[STAT_INDEX[key]!]
 }

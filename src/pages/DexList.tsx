@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
-import { dexForm, formLabel, pad, thumb } from '../data/db'
+import { dexForm, formLabel, pad, thumb, useEncounters } from '../data/db'
 import { DEXES, type Db, type DexId, type Species } from '../data/types'
 import { searchSpecies } from '../lib/search'
+import { buildHunt, variantForms, type Via } from '../lib/hunt'
 import { usePrefs, type CaughtFilter } from '../store/prefs'
-import { CaughtToggle, Img, Toggle, Types, VersionBadge } from '../components/ui'
+import { CaughtToggle, Img, Types, VersionBadge } from '../components/ui'
+import { MethodTag } from '../components/MethodTag'
 
 // Search text and scroll position survive opening a Pokémon and coming back.
 const useListState = create<{ q: string; scroll: Record<string, number> }>(() => ({ q: '', scroll: {} }))
@@ -18,7 +20,7 @@ const FILTERS: { id: CaughtFilter; label: string }[] = [
 ]
 
 export default function DexList({ db }: { db: Db }) {
-  const { dex: savedDex, setDex, filter, setFilter, hideViolet, setHideViolet, shiny, caught, team, dlc } = usePrefs()
+  const { dex: savedDex, setDex, filter, setFilter, shiny, caught, team, dlc } = usePrefs()
   // without the DLC only the Paldea dex exists
   const dex: DexId = dlc ? savedDex : 'paldea'
   const dexes = dlc ? DEXES : DEXES.filter((d) => d.id === 'paldea')
@@ -26,15 +28,22 @@ export default function DexList({ db }: { db: Db }) {
   const caughtSet = useMemo(() => new Set(caught), [caught])
   const teamSpecies = useMemo(() => new Set(team.map((f) => db.formBySlug.get(f)?.species.slug)), [team, db])
 
+  // How to get each Paldea entry, same as the Hunt tab (tags appear once the encounter data has loaded).
+  const enc = useEncounters()
+  const howToGet = useMemo(() => {
+    const m = new Map<string, Via>()
+    if (enc && dex === 'paldea') for (const h of buildHunt(db, enc)) if (h.via) m.set(h.species.slug, h.via)
+    return m
+  }, [enc, db, dex])
+
   const inDex = useMemo(() => db.dexes[dex].map((slug) => db.bySlug.get(slug)!).filter(Boolean), [db, dex])
   const shown = useMemo(() => {
     let list = inDex
-    if (hideViolet) list = list.filter((s) => dexForm(s, dex).ver !== 'violet')
     if (filter === 'caught') list = list.filter((s) => caughtSet.has(s.slug))
     if (filter === 'missing') list = list.filter((s) => !caughtSet.has(s.slug))
     if (filter === 'team') list = list.filter((s) => teamSpecies.has(s.slug))
     return searchSpecies(db.species, list, q, dex, (s) => dexForm(s, dex).types)
-  }, [inDex, hideViolet, filter, caughtSet, teamSpecies, q, dex, db])
+  }, [inDex, filter, caughtSet, teamSpecies, q, dex, db])
 
   const elsewhere = useMemo(() => {
     if (!q.trim() || shown.length) return []
@@ -91,8 +100,6 @@ export default function DexList({ db }: { db: Db }) {
               {f.label}{f.id === 'team' && team.length ? ` (${team.length})` : ''}
             </button>
           ))}
-          <span className="mx-1 w-px shrink-0" style={{ background: 'var(--ring)' }} />
-          <Toggle on={hideViolet} onChange={setHideViolet} label="Hide Violet-only" />
         </div>
       </div>
 
@@ -101,7 +108,7 @@ export default function DexList({ db }: { db: Db }) {
       </p>
 
       <ul className="card divide-y overflow-hidden" style={{ borderColor: 'var(--ring)' }}>
-        {shown.map((s) => <Row key={s.slug} s={s} dex={dex} shiny={shiny} />)}
+        {shown.map((s) => <Row key={s.slug} s={s} dex={dex} shiny={shiny} via={howToGet.get(s.slug)} />)}
       </ul>
 
       {!shown.length && (
@@ -121,15 +128,15 @@ export default function DexList({ db }: { db: Db }) {
   )
 }
 
-function Row({ s, dex, shiny }: { s: Species; dex: DexId; shiny: boolean }) {
+function Row({ s, dex, shiny, via }: { s: Species; dex: DexId; shiny: boolean; via?: Via }) {
   const f = dexForm(s, dex)
-  const violet = f.ver === 'violet'
+  const forms = dex === 'paldea' ? variantForms(s).length : 0
   return (
     <li className="dex-row flex items-center pr-1.5" style={{ borderColor: 'var(--ring)' }}>
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex min-w-0 flex-1 items-center gap-3 py-1.5 pl-3 active:bg-black/5">
         <span className="w-10 shrink-0 font-mono text-sm font-bold tabular-nums muted">#{pad(s.dex[dex]!)}</span>
-        <Img src={thumb(f, shiny)} alt="" size={52} className={`h-[52px] w-[52px] shrink-0 object-contain ${violet ? 'violet-only' : ''}`} />
-        <span className={`min-w-0 flex-1 ${violet ? 'opacity-70' : ''}`}>
+        <Img src={thumb(f, shiny)} alt="" size={52} className="h-[52px] w-[52px] shrink-0 object-contain" />
+        <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-1.5">
             <span className="truncate font-semibold">{s.name}</span>
             {!f.default && f.label && <span className="text-xs muted">{formLabel(f)}</span>}
@@ -137,6 +144,8 @@ function Row({ s, dex, shiny }: { s: Species; dex: DexId; shiny: boolean }) {
           <span className="mt-0.5 flex flex-wrap items-center gap-1">
             <Types types={f.types} size="sm" />
             <VersionBadge form={f} />
+            {via && <MethodTag via={via} />}
+            {forms > 1 && <span className="whitespace-nowrap rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300" title="Several forms: open it to see each one and how to get it">◈ {forms} forms</span>}
           </span>
         </span>
       </Link>

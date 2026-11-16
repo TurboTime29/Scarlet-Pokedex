@@ -6,14 +6,14 @@ A phone-friendly Pokédex for **Pokémon Scarlet** (Paldea, Kitakami and Blueber
 - Pokémon HOME artwork with a shiny toggle
 - Base stats with a "worth raising?" verdict, evolution lines (tap to jump), level-up / TM / egg moves
 - **Where to find it**: every spawn area per region with the biome, levels, time of day and odds (the Pokémon's share of spawns in that biome, from datamined spawn weights), plus fixed spots, gifts and Tera Raids
-- **Hunt**: everything you can catch yourself in base-game Scarlet (wild + fixed spots), sortable by BST, final-evolution BST or any stat, with time-of-day and condition badges
+- **Hunt**: a Paldea Pokédex completion checklist — all 400 entries with the easiest way to get each in base-game Scarlet (catch, evolve, trade for Violet-only ones on a link code, or a gift / one-time encounter), one row per Pokémon (multi-form species list each form and how to get it), a progress bar, filters by method, and sorting by dex number, BST, final-evolution BST or any stat, with time-of-day and condition badges
 - **Map**: every area and sub-area with each biome's Pokémon, odds and a time-of-day filter, plus fixed spots and items found there
 - **Bag**: every item and TM in Scarlet/Violet, what it does, where to get it, and which Pokémon each evolution item works on
 - Shiny odds calculator (Shiny Charm, Sparkling Power, outbreaks, Masuda)
 - "Weak against" / "Strong against" type matchups
 - **Beat a type**: pick an opponent type (or two) and get the best counters, optionally only from Pokémon you've caught
 - Mark Pokémon as caught, build a team of 6 and see its shared weaknesses and coverage gaps
-- Violet-only Pokémon are clearly flagged as not catchable in Scarlet
+- Violet-only Pokémon are clearly flagged as not catchable in Scarlet, with the universal link code to trade for them (Hunt tab, their page, and a full code list)
 
 Live: https://turbotime29.github.io/Scarlet-Pokedex/
 

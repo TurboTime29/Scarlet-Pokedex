@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { placeKey, useEncounters } from '../data/db'
+import { formLabel, placeKey, useEncounters } from '../data/db'
+import { FORM_NOTES } from '../data/formNotes'
 import { isDlcSpecies } from '../lib/dlc'
 import { DlcBadge } from './ui'
 import { usePrefs } from '../store/prefs'
@@ -80,7 +81,19 @@ function parentOf(db: Db, s: Species): Species | null {
   return p ? db.bySlug.get(p) ?? null : null
 }
 
+/** Where to find it, with a how-to note first for forms the spawn data can't tell apart (Rotom, Oricorio…). */
 export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
+  const note = FORM_NOTES[f.slug]
+  if (!note) return <EncounterList db={db} s={s} f={f} />
+  return (
+    <div className="space-y-2">
+      <p className="rounded-2xl bg-emerald-500/10 p-3 text-sm"><b>◈ {formLabel(f)}:</b> {note}</p>
+      <EncounterList db={db} s={s} f={f} formNote />
+    </div>
+  )
+}
+
+function EncounterList({ db, s, f, formNote }: { db: Db; s: Species; f: Form; formNote?: boolean }) {
   const enc = useEncounters()
   const dlc = usePrefs((p) => p.dlc)
   const [showAll, setShowAll] = useState<Record<string, boolean>>({})
@@ -112,6 +125,8 @@ export function Encounters({ db, s, f }: { db: Db; s: Species; f: Form }) {
   }
 
   if (!wild.length && !fixed.length && !raids.length) {
+    // the form note above already says how to get it
+    if (formNote) return null
     const parent = parentOf(db, s)
     return (
       <div className="card p-3 text-sm">

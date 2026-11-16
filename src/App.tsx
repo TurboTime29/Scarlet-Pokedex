@@ -24,6 +24,7 @@ const BagPage = L(() => import('./pages/BagPage'))
 const MapPage = L(() => import('./pages/MapPage'))
 const HuntPage = L(() => import('./pages/HuntPage'))
 const LocationPage = L(() => import('./pages/LocationPage'))
+const TradesPage = L(() => import('./pages/TradesPage'))
 const TypeChartPage = L(() => import('./pages/TypeChartPage') as Promise<{ default: ComponentType<{ db: Db }> }>)
 
 const tabs = [
@@ -38,7 +39,7 @@ export default function App() {
   const { db, error } = useDb()
   const loc = useLocation()
   const nav = useNavigate()
-  const isDetail = loc.pathname.startsWith('/p/') || loc.pathname.startsWith('/map/') || loc.pathname === '/settings' || loc.pathname === '/types'
+  const isDetail = loc.pathname.startsWith('/p/') || loc.pathname.startsWith('/map/') || loc.pathname === '/settings' || loc.pathname === '/types' || loc.pathname === '/trades'
   const session = useSync()
   const sync = useSyncStatus()
 
@@ -82,6 +83,7 @@ export default function App() {
                 <Route path="/hunt" element={<HuntPage db={db} />} />
                 <Route path="/map" element={<MapPage db={db} />} />
                 <Route path="/map/:key" element={<LocationPage db={db} />} />
+                <Route path="/trades" element={<TradesPage db={db} />} />
                 <Route path="/settings" element={<SettingsPage db={db} />} />
                 <Route path="*" element={<DexList db={db} />} />
               </Routes>

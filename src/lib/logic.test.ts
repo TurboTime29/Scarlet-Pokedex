@@ -7,7 +7,8 @@ import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies } from './dlc'
-import { buildHunt, sortValue, spotCondition } from './hunt'
+import { buildHunt, methodOf, sortValue, spotCondition } from './hunt'
+import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
 
 function loadDb(): Db {
   const read = (n: string) => JSON.parse(readFileSync(new URL(`../../public/data/${n}.json`, import.meta.url), 'utf-8'))
@@ -145,11 +146,23 @@ describe('hunt list', () => {
   const enc = JSON.parse(readFileSync(new URL('../../public/data/encounters.json', import.meta.url), 'utf-8'))
   const hunt = buildHunt(db, enc)
   const get = (slug: string) => hunt.find((h) => h.form.slug === slug)
-  it('only has Pokémon you can catch yourself in base-game Scarlet', () => {
-    expect(hunt.length).toBeGreaterThan(300)
-    expect(hunt.every((h) => h.form.ver !== 'violet' && !isDlcForm(h.species, h.form))).toBe(true)
-    expect(get('dreepy')).toBeUndefined() // Violet only
-    expect(get('sprigatito')).toBeUndefined() // gift, not caught
+  it('covers every Paldea dex entry, with a way to get it in base-game Scarlet', () => {
+    const paldea = db.species.filter((s) => s.dex.paldea != null)
+    expect(paldea).toHaveLength(400)
+    const inHunt = new Set(hunt.map((h) => h.species.slug))
+    expect(paldea.filter((s) => !inHunt.has(s.slug)).map((s) => s.slug)).toEqual([])
+    expect(hunt.every((h) => !isDlcForm(h.species, h.form))).toBe(true)
+    expect(hunt.every((h) => (h.spots.length > 0) === !h.via)).toBe(true)
+    // each dex entry has exactly one way to get it, so the per-method counts add up to the dex
+    const methods = new Map<string, Set<string>>()
+    for (const h of hunt) methods.set(h.species.slug, (methods.get(h.species.slug) ?? new Set()).add(methodOf(h)))
+    expect([...methods].filter(([, m]) => m.size > 1).map(([s]) => s)).toEqual([])
+    expect(hunt.filter((h) => h.form.ver === 'violet').every((h) => h.via?.kind === 'trade')).toBe(true)
+    expect(get('sprigatito')?.via).toMatchObject({ kind: 'special', gift: true })
+    const sprig = get('sprigatito')!.via
+    expect(sprig?.kind === 'special' && sprig.codes.map((c) => c.code)).toEqual(['0906 0909', '0906 0912'])
+    expect(get('wo-chien')?.via).toMatchObject({ kind: 'special', gift: false })
+    expect(get('koraidon')?.via).toMatchObject({ kind: 'special', gift: true })
     expect(get('okidogi')).toBeUndefined() // DLC
   })
   it('knows evolutions, time limits and conditions', () => {
@@ -164,6 +177,80 @@ describe('hunt list', () => {
   it('sorts by BST', () => {
     const top = [...hunt].sort((a, b) => sortValue(b, 'bst', null) - sortValue(a, 'bst', null))[0]
     expect(top.bst).toBeGreaterThanOrEqual(600)
+  })
+  it('lists every base-game Violet-only Pokémon with the code to trade for it', () => {
+    const violet = db.species.filter((s) => s.dex.paldea != null && s.slug !== 'tauros').flatMap((s) => s.forms.filter((f) => f.ver === 'violet' && !f.battleOnly && !isDlcForm(s, f)))
+    expect(violet.length).toBeGreaterThan(20)
+    const trade = (slug: string) => { const v = get(slug)?.via; return v?.kind === 'trade' ? v : undefined }
+    for (const f of violet) expect(trade(f.slug), f.slug).toBeDefined()
+    expect(trade('dreepy')!.entry.code).toBe('0633 0885')
+    expect(trade('dreepy')!.entry.scarlet.s).toBe('deino')
+    expect(trade('salamence')!.evolveFrom).toBe('bagon')
+    expect(get('tauros-paldea-aqua-breed')).toBeUndefined() // one Tauros is enough for the dex, and Combat Breed is catchable
+  })
+  it('has one entry per species, listing each form of multi-form species and how to get it', () => {
+    expect(new Set(hunt.map((h) => h.species.slug)).size).toBe(hunt.length)
+    const forms = (sp: string) => hunt.find((h) => h.species.slug === sp)!.forms!
+    const tauros = forms('tauros')
+    expect(tauros.map((x) => x.form.slug)).toEqual(['tauros-paldea-combat-breed', 'tauros-paldea-blaze-breed', 'tauros-paldea-aqua-breed'])
+    expect(tauros[1].spots.length).toBeGreaterThan(0)
+    expect(tauros[2].via?.kind).toBe('trade')
+    expect(forms('lycanroc').every((x) => x.spots.length > 0)).toBe(true)
+    expect(forms('maushold').every((x) => x.note)).toBe(true)
+    expect(forms('rotom')).toHaveLength(6)
+    expect(forms('gimmighoul').find((x) => x.form.slug === 'gimmighoul-roaming')?.note).toMatch(/Pokémon GO/)
+    expect(hunt.find((h) => h.species.slug === 'lechonk')!.forms).toBeUndefined()
+    // every form with nothing to catch has a trade or a note
+    for (const h of hunt) for (const x of h.forms ?? []) expect(x.spots.length > 0 || !!x.via || !!x.note, x.form.slug).toBe(true)
+  })
+  it('says what to evolve for entries with nothing to catch', () => {
+    const evolve = (slug: string) => { const v = get(slug)?.via; return v?.kind === 'evolve' ? v : undefined }
+    expect(evolve('kingambit')?.from.slug).toBe('bisharp')
+    expect(evolve('meowscarada')?.from.slug).toBe('floragato')
+    expect(evolve('scizor')?.code?.code).toBe('0260 0260')
+    expect(evolve('gholdengo')?.from.slug).toBe('gimmighoul')
+    expect(evolve('tyranitar')?.raids.length).toBeGreaterThan(0)
+  })
+  it('sorts catchable first, then evolve, trade, special', () => {
+    const v = (slug: string) => sortValue(get(slug)!, 'odds', null)
+    expect(v('lechonk')).toBeGreaterThan(v('kingambit'))
+    expect(v('kingambit')).toBeGreaterThan(v('dreepy'))
+    expect(v('dreepy')).toBeGreaterThan(v('wo-chien'))
+  })
+})
+
+describe('link codes', () => {
+  const db = loadDb()
+  it('every Pokémon and form in the code list exists', () => {
+    const mons = [
+      ...EXCLUSIVE_CODES.flatMap((e) => [e.scarlet, e.violet, ...(e.violetLine ?? []).map((s) => ({ s }))]),
+      ...EVO_CODES.flatMap((e) => [e.from, e.into]),
+      ...STARTER_CODES.flatMap((e) => [{ s: e.a }, { s: e.b }]),
+    ] as { s: string; f?: string }[]
+    for (const m of mons) {
+      const s = db.bySlug.get(m.s)
+      expect(s, m.s).toBeDefined()
+      if (m.f) expect(s!.forms.some((f) => f.slug === m.f), m.f).toBe(true)
+    }
+  })
+  it('codes are 8 digits', () => {
+    for (const e of [...EXCLUSIVE_CODES, ...EVO_CODES, ...STARTER_CODES]) expect(e.code).toMatch(/^\d{4} \d{4}$/)
+  })
+  it('the Violet side is Violet-only and the Scarlet side is not', () => {
+    const form = (m: { s: string; f?: string }) => db.bySlug.get(m.s)!.forms.find((f) => (m.f ? f.slug === m.f : f.default))!
+    for (const e of EXCLUSIVE_CODES) {
+      const vf = form(e.violet)
+      const sf = form(e.scarlet)
+      expect(vf.ver, e.violet.s).toBe('violet')
+      expect(sf.ver, e.scarlet.s).not.toBe('violet')
+    }
+  })
+  it('finds codes for a Pokémon page', () => {
+    expect(codesFor('larvitar', 'larvitar').exclusive[0].violet.s).toBe('bagon')
+    expect(codesFor('scizor', 'scizor').evo[0].item).toBe('Metal Coat')
+    expect(codesFor('graveler', 'graveler-alola').evo.map((e) => e.into.f)).toEqual(['golem-alola'])
+    expect(codesFor('sprigatito', 'sprigatito').starter).toHaveLength(2)
+    expect(violetTrade('tauros', 'tauros-paldea-combat-breed')).toBeNull()
   })
 })
 

@@ -1,13 +1,15 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { create } from 'zustand'
 import { formLabel, pad, placeKey, thumb, useEncounters } from '../data/db'
-import type { Db } from '../data/types'
-import { buildHunt, sortValue, spotCondition, type HuntEntry, type SortKey, type Spot } from '../lib/hunt'
+import type { Db, Species } from '../data/types'
+import { METHOD_ORDER, buildHunt, methodOf, sortValue, spotCondition, type FormWay, type HuntEntry, type Method, type SortKey, type Spot, type Via } from '../lib/hunt'
 import { TYPES, typeName } from '../lib/types'
 import { usePrefs } from '../store/prefs'
 import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
+import { CodeChip, TradeLine, monName } from '../components/LinkCodes'
+import { METHOD, MethodTag } from '../components/MethodTag'
 
 const SORTS: { id: SortKey; label: string; short: string }[] = [
   { id: 'bst', label: 'Base stat total (BST)', short: 'BST' },
@@ -23,9 +25,10 @@ const SORTS: { id: SortKey; label: string; short: string }[] = [
 ]
 
 // Hunt settings survive leaving the tab (not saved across app restarts on purpose: it's a session tool).
-const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; targetsOnly: boolean; time: number | null; type: string; q: string }>(() => ({
-  sort: 'bst', notCaught: true, finalOnly: false, targetsOnly: false, time: null, type: '', q: '',
+const useHunt = create<{ sort: SortKey; notCaught: boolean; finalOnly: boolean; targetsOnly: boolean; how: Method | null; time: number | null; type: string; q: string }>(() => ({
+  sort: 'dex', notCaught: true, finalOnly: false, targetsOnly: false, how: null, time: null, type: '', q: '',
 }))
+
 
 export function FindTabs({ active }: { active: 'hunt' | 'map' }) {
   return (
@@ -45,7 +48,8 @@ export default function HuntPage({ db }: { db: Db }) {
   const caughtSet = useMemo(() => new Set(caught), [caught])
   const all = useMemo(() => (enc ? buildHunt(db, enc) : []), [db, enc])
 
-  const list = useMemo(() => {
+  // everything but the method filter, so the method counts match what each one would show
+  const filtered = useMemo(() => {
     const q = st.q.trim().toLowerCase()
     return all
       .filter((h) => !st.notCaught || !caughtSet.has(h.species.slug))
@@ -55,11 +59,20 @@ export default function HuntPage({ db }: { db: Db }) {
       .filter((h) => !st.type || h.form.types.includes(st.type))
       .filter((h) => !q || h.species.name.toLowerCase().includes(q))
       .sort((a, b) => sortValue(b, st.sort, st.time) - sortValue(a, st.sort, st.time) || b.bst - a.bst)
-  }, [all, st, caughtSet, wantedSet])
+  }, [all, st.q, st.notCaught, st.finalOnly, st.targetsOnly, st.time, st.type, st.sort, caughtSet, wantedSet])
+  const list = useMemo(() => (st.how ? filtered.filter((h) => methodOf(h) === st.how) : filtered), [filtered, st.how])
+  // counted per species (forms like Squawkabilly's plumages are one dex entry)
+  const byMethod = useMemo(() => {
+    const n = { catch: new Set<string>(), evolve: new Set<string>(), trade: new Set<string>(), special: new Set<string>() }
+    for (const h of filtered) n[methodOf(h)].add(h.species.slug)
+    return n
+  }, [filtered])
+  const shownSpecies = useMemo(() => new Set(list.map((h) => h.species.slug)).size, [list])
+  const paldea = db.dexes.paldea
+  const registered = useMemo(() => paldea.filter((s) => caughtSet.has(s)).length, [paldea, caughtSet])
 
   if (!enc) return <p className="py-16 text-center text-sm muted">Loading spawns…</p>
   const sort = SORTS.find((s) => s.id === st.sort)!
-  const caughtCount = all.filter((h) => caughtSet.has(h.species.slug)).length
 
   return (
     <div className="space-y-3">
@@ -94,18 +107,38 @@ export default function HuntPage({ db }: { db: Db }) {
         </div>
       </div>
 
+      <section className="card p-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="font-display text-base font-bold">📕 Paldea Pokédex</h2>
+          <span className="text-sm tabular-nums"><b className="text-lg font-black">{registered}</b><span className="muted"> / {paldea.length}</span></span>
+        </div>
+        <div className="mt-1.5 h-2.5 overflow-hidden rounded-full" style={{ background: 'var(--surface-2)' }} role="progressbar" aria-valuemin={0} aria-valuemax={paldea.length} aria-valuenow={registered} aria-label="Paldea Pokédex caught">
+          <div className="h-full rounded-full bg-scarlet-600 transition-[width]" style={{ width: `${(registered / paldea.length) * 100}%` }} />
+        </div>
+        <p className="mt-1.5 text-xs muted">{registered === paldea.length ? 'Complete — every Paldea entry caught! 🎉' : `${paldea.length - registered} to go. Tap a way to get them to filter:`}</p>
+        <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+          {METHOD_ORDER.map((m) => (
+            <button key={m} className="chip flex-col !gap-0 !rounded-xl !py-1.5" aria-pressed={st.how === m} onClick={() => set({ how: st.how === m ? null : m })}>
+              <span className="text-base font-black tabular-nums leading-tight">{METHOD[m].icon} {byMethod[m].size}</span>
+              <span className="text-[10px] leading-tight">{METHOD[m].label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <p className="text-xs muted">
-        <b style={{ color: 'var(--text)' }}>{list.length}</b> Pokémon you can catch yourself in Scarlet’s base game{st.time != null ? ` ${st.time === 3 ? 'at night' : `in the ${TIME_LABEL[st.time].toLowerCase()}`}` : ''}, sorted by {sort.id === 'odds' || sort.id === 'dex' ? sort.label.toLowerCase() : sort.label}.
-        {' '}You’ve caught {caughtCount} of {all.length}. Wild spawns and fixed spots only — no gifts, trades, raids, Violet or DLC.
+        <b style={{ color: 'var(--text)' }}>{shownSpecies}</b> Pokémon{st.how ? ` (${METHOD[st.how].label.toLowerCase()})` : ''}{st.time != null ? ` ${st.time === 3 ? 'at night' : `in the ${TIME_LABEL[st.time].toLowerCase()}`}` : ''}, sorted by {sort.id === 'odds' || sort.id === 'dex' ? sort.label.toLowerCase() : sort.label}.
+        {' '}Every Paldea dex entry with the easiest way to get it in Scarlet’s base game: catch it, evolve it, trade for Violet-only ones on a link code, or a gift / one-time encounter.
+        {' '}<Link to="/trades" className="font-semibold text-scarlet-600 underline">All link codes</Link>
       </p>
 
       {st.targetsOnly && list.length > 0 && <BestAreas list={list} time={st.time} />}
       {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
       <ul className="space-y-1.5">
-        {list.map((h) => <HuntRow key={h.form.slug} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
+        {list.map((h) => <HuntRow key={h.form.slug} db={db} h={h} sortKey={st.sort} sortShort={sort.short} time={st.time} shiny={shiny} />)}
       </ul>
-      {!list.length && <p className="py-10 text-center text-sm muted">{st.notCaught ? 'Nothing left to catch with these filters — nice work!' : 'No Pokémon match these filters.'}</p>}
+      {!list.length && <p className="py-10 text-center text-sm muted">{st.notCaught ? 'Nothing left with these filters — nice work!' : 'No Pokémon match these filters.'}</p>}
     </div>
   )
 }
@@ -116,7 +149,7 @@ function placeOf(sp: Spot): string {
   return sub ? `${loc} · ${sub}` : loc
 }
 
-function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
+function HuntRow({ db, h, sortKey, sortShort, time, shiny }: { db: Db; h: HuntEntry; sortKey: SortKey; sortShort: string; time: number | null; shiny: boolean }) {
   const { species: s, form: f } = h
   // best spot for the chosen time (fixed spots always count)
   const spots = time == null ? h.spots : h.spots.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
@@ -126,8 +159,10 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
   const value = sortKey === 'top' ? h.topBst : sortKey === 'odds' || sortKey === 'dex' ? h.bst : sortValue(h, sortKey, time)
   const wildPct = best?.kind === 'wild' ? (time == null ? Math.max(...best.w.p) : best.w.p[time]) : null
   const rar = wildPct != null ? rarity(wildPct) : null
+  const [formsOpen, setFormsOpen] = useState(false)
   return (
-    <li className="card flex items-stretch gap-2 p-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}>
+    <li className="card p-2" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 96px' }}>
+     <div className="flex items-stretch gap-2">
       <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex min-w-0 flex-1 gap-2">
         <span className="flex w-12 shrink-0 flex-col items-center">
           <span className="text-[10px] font-bold tabular-nums muted" title="Paldea dex number">#{pad(s.dex.paldea!)}</span>
@@ -136,10 +171,12 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-1.5">
             <span className="font-semibold">{s.name}</span>
-            {!f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
-            {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+            {!h.forms && !f.default && f.label && <span className="text-[11px] muted">{formLabel(f)}</span>}
+            {!h.forms && f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+            {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
           </span>
           <Types types={f.types} size="sm" />
+          {h.via && <ViaLine db={db} via={h.via} slug={s.slug} />}
           {best && (
             <span className="mt-1 block text-[11px] leading-snug">
               <span aria-hidden>{best.kind === 'wild' ? '📍' : '📌'}</span>{' '}
@@ -151,6 +188,16 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
             </span>
           )}
           <span className="mt-0.5 flex flex-wrap gap-1">
+            {h.forms && (
+              <button
+                type="button"
+                aria-expanded={formsOpen}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormsOpen(!formsOpen) }}
+                className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+              >
+                ◈ {h.forms.length} forms {formsOpen ? '▴' : '▾'}
+              </button>
+            )}
             {cond && <Badge tone="amber">{noteIcon(cond)} {short(cond)}</Badge>}
             {onlyTimes && <Badge tone="indigo">{onlyTimes.map((t) => TIME_ICON[t]).join('')} {onlyTimes.map((t) => TIME_LABEL[t]).join(' & ')} only</Badge>}
             {best?.kind === 'wild' && best.w.n && !cond && <Badge tone="plain">{noteIcon(best.w.n)} {short(best.w.n)}</Badge>}
@@ -163,10 +210,83 @@ function HuntRow({ h, sortKey, sortShort, time, shiny }: { h: HuntEntry; sortKey
           <span className="block text-lg font-black tabular-nums">{value}</span>
           <span className="block text-[9px] font-bold uppercase muted">{sortKey === 'odds' || sortKey === 'dex' ? 'BST' : sortShort}</span>
         </span>
-        {rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
+        {h.via ? <MethodTag via={h.via} /> : rar && wildPct != null ? <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${rar.cls}`}>{wildPct}%</span> : <span className="text-[9px] font-bold muted">fixed</span>}
       </span>
       <span className="flex flex-col items-center justify-center"><TargetStar form={f.slug} size="sm" /><CaughtToggle species={s.slug} size={22} /></span>
+     </div>
+      {formsOpen && h.forms && <FormsPanel db={db} s={s} forms={h.forms} shiny={shiny} time={time} />}
     </li>
+  )
+}
+
+/** Each form of a multi-form species and how to get that one. */
+function FormsPanel({ db, s, forms, shiny, time }: { db: Db; s: Species; forms: FormWay[]; shiny: boolean; time: number | null }) {
+  return (
+    <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--ring)' }}>
+      <p className="mb-1 text-[11px] muted">Any one form fills the dex entry. Each form:</p>
+      <ul className="space-y-1.5">
+        {forms.map(({ form: f, spots: all, via, note }) => {
+          const spots = time == null ? all : all.filter((sp) => sp.kind === 'fixed' || sp.w.p[time] > 0)
+          const best = spots[0]
+          const pct = best?.kind === 'wild' ? (time == null ? Math.max(...best.w.p) : best.w.p[time]) : null
+          return (
+            <li key={f.slug}>
+              <Link to={`/p/${s.slug}${f.default ? '' : `/${f.slug}`}`} className="flex gap-2">
+                <Img src={thumb(f, shiny)} alt="" size={36} className="h-9 w-9 shrink-0 object-contain" />
+                <span className="min-w-0 flex-1 text-[11px] leading-snug">
+                  <span className="flex flex-wrap items-center gap-x-1.5">
+                    <span className="text-xs font-semibold underline decoration-dotted">{formLabel(f)}</span>
+                    {f.ver === 'scarlet' && <span className="text-[10px] font-bold text-scarlet-600">Scarlet only</span>}
+                    {f.ver === 'violet' && <span className="text-[10px] font-bold text-violet-sv">Violet only</span>}
+                  </span>
+                  {best && (
+                    <span className="block">
+                      <span aria-hidden>{best.kind === 'wild' ? '📍' : '📌'}</span> <span className="font-semibold">{placeOf(best)}</span>
+                      <span className="muted">{best.kind === 'wild' ? ` · ${best.w.b} · Lv ${best.w.lv}` : ` · ${best.x.where === 'Fixed' ? 'fixed spot' : best.x.where} · Lv ${best.x.lv}`}{pct != null ? ` · ${pct}%` : ''}{spots.length > 1 ? ` · +${spots.length - 1} more` : ''}</span>
+                    </span>
+                  )}
+                  {!best && all.length > 0 && <span className="block muted">Not at this time of day.</span>}
+                  {via && <ViaLine db={db} via={via} slug={s.slug} />}
+                  {note && <span className="block muted">{note}</span>}
+                </span>
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+/** How to get an entry that can't be caught in the wild. */
+function ViaLine({ db, via, slug }: { db: Db; via: Via; slug: string }) {
+  const caught = usePrefs((p) => p.caught)
+  if (via.kind === 'trade') return <TradeLine db={db} entry={via.entry} evolveFrom={via.evolveFrom} />
+  if (via.kind === 'evolve') {
+    const have = caught.includes(via.from.slug)
+    return (
+      <span className="mt-1 block text-[11px] leading-snug">
+        <span aria-hidden>🧬</span> Evolve <span className="font-semibold">{via.from.name}</span>
+        {have ? <span className="text-emerald-600 dark:text-emerald-400"> ✓ caught</span> : null}
+        {via.how && <span className="muted"> · {via.how}</span>}
+        {via.code && <> <span className="muted">· trade on</span> <CodeChip code={via.code.code} size="sm" /></>}
+        {via.raids.length > 0 && <span className="muted"> · also in {via.raids.join('/')}★ raids</span>}
+      </span>
+    )
+  }
+  return (
+    <span className="mt-1 block text-[11px] leading-snug">
+      <span aria-hidden>{via.gift ? '🎁' : '📌'}</span> <span className="font-semibold">{via.group.replace(/^./, (c) => c.toUpperCase())}</span>
+      <span className="muted"> · {via.loc}</span>
+      {via.codes.length > 0 && (
+        <span className="mt-0.5 block">
+          <span className="muted">Picked another starter? Swap: </span>
+          {via.codes.map((c, i) => (
+            <span key={c.code}>{i > 0 && <span className="muted"> · </span>}<span className="muted">offer </span>{monName(db, c.a === slug ? c.b : c.a)} <CodeChip code={c.code} size="sm" /></span>
+          ))}
+        </span>
+      )}
+    </span>
   )
 }
 

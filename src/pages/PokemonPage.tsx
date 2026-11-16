@@ -12,6 +12,7 @@ import { MoveTable } from '../components/MoveTable'
 import { Encounters } from '../components/Encounters'
 import { ShinyOdds } from '../components/ShinyOdds'
 import { EvolutionInfo } from '../components/EvolutionInfo'
+import { LinkCodesCard, VioletTradeHowTo } from '../components/LinkCodes'
 
 const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed']
 
@@ -90,7 +91,7 @@ export default function PokemonPage({ db }: { db: Db }) {
         </div>
       )}
 
-      <AvailabilityBanner f={f} name={s.name} />
+      <AvailabilityBanner db={db} s={s} f={f} />
 
       {selectable.length > 1 && (
         <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
@@ -119,6 +120,8 @@ export default function PokemonPage({ db }: { db: Db }) {
         <h2 className="section-title">Where to find it</h2>
         <Encounters db={db} s={s} f={f} />
       </section>
+
+      <LinkCodesCard db={db} s={s.slug} f={f.slug} skipVioletSide={f.ver === 'violet'} />
 
       <WorthRaising db={db} s={s} f={f} />
 
@@ -153,13 +156,15 @@ export default function PokemonPage({ db }: { db: Db }) {
   )
 }
 
-function AvailabilityBanner({ f, name }: { f: Form; name: string }) {
+function AvailabilityBanner({ db, s, f }: { db: Db; s: Species; f: Form }) {
+  const name = s.name
   if (f.ver === 'violet') {
     return (
       <div className="rounded-2xl border-2 border-violet-sv bg-violet-sv/10 p-3">
         <p className="font-bold text-violet-sv">🚫 Can’t be caught in Scarlet</p>
         <p className="mt-0.5 text-sm">{name}{f.label && !f.default ? ` (${formLabel(f)})` : ''} only appears in Pokémon Violet. You’d need to trade for it with a Violet player.</p>
         {f.note && <p className="mt-1 text-xs muted">{f.note}</p>}
+        <VioletTradeHowTo db={db} s={s.slug} f={f.slug} />
       </div>
     )
   }
