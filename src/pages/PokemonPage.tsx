@@ -5,7 +5,7 @@ import { DEXES, type Db, type EvoNode, type Form, type Species } from '../data/t
 import { TYPE_COLORS, type Type } from '../lib/types'
 import { TEAM_SIZE, usePrefs } from '../store/prefs'
 import { CaughtToggle, DlcBadge, Img, TargetStar, Types, VersionBadge } from '../components/ui'
-import { dlcPart, isDlcForm } from '../lib/dlc'
+import { dlcPart, isDlcForm, isDlcSpecies, withoutDlcBranches } from '../lib/dlc'
 import { EvolutionLine } from '../components/EvolutionLine'
 import { Matchups } from '../components/Matchups'
 import { MoveTable } from '../components/MoveTable'
@@ -108,7 +108,7 @@ export default function PokemonPage({ db }: { db: Db }) {
       <section>
         <h2 className="section-title">Evolution</h2>
         <EvolutionInfo db={db} s={s} f={f} />
-        {s.chain != null && db.evolutions[s.chain]?.to?.length ? (
+        {s.chain != null && withoutDlcBranches(db, db.evolutions[s.chain], dlc || isDlcSpecies(s)).to?.length ? (
           <div className="mt-3">
             <h3 className="mb-1.5 text-xs font-bold muted">Full evolution line</h3>
             <EvolutionLine db={db} chain={s.chain} current={s.slug} currentForm={f} shiny={shiny} />
@@ -183,9 +183,12 @@ function AvailabilityBanner({ db, s, f }: { db: Db; s: Species; f: Form }) {
 /** The base stat total, where it ends up after evolving, and a plain-English verdict. */
 function WorthRaising({ db, s, f }: { db: Db; s: Species; f: Form }) {
   const total = bst(f)
-  const final = isFinal(db, s)
+  const dlc = usePrefs((p) => p.dlc)
+  // without the DLC, judge it by base-game evolutions only (Applin → Flapple / Appletun, not Hydrapple)
+  const keepDlc = dlc || isDlcSpecies(s)
+  const final = isFinal(db, s, !keepDlc)
   const max = Math.max(...f.stats, 1)
-  const finals = final ? [] : finalEvolutions(db, s)
+  const finals = final || s.chain == null ? [] : finalEvolutions(db, s, withoutDlcBranches(db, db.evolutions[s.chain], keepDlc))
   const bestFinal = finals.sort((a, b) => bst(mainForm(b)) - bst(mainForm(a)))[0]
   const verdict = s.legend
     ? { tone: 'text-amber-600', text: `${s.legend === 'mythical' ? 'Mythical' : 'Legendary'} — top-tier stats.` }
@@ -229,8 +232,7 @@ function tier(total: number) {
 
 const statColor = (v: number) => v >= 120 ? '#10b981' : v >= 90 ? '#84cc16' : v >= 60 ? '#f59e0b' : '#ef4444'
 
-function finalEvolutions(db: Db, s: Species): Species[] {
-  if (s.chain == null) return []
+function finalEvolutions(db: Db, s: Species, root: EvoNode): Species[] {
   const find = (n: EvoNode): EvoNode | null => n.s === s.slug ? n : (n.to ?? []).map(find).find(Boolean) ?? null
   const out: Species[] = []
   const walk = (n: EvoNode) => {
@@ -238,7 +240,7 @@ function finalEvolutions(db: Db, s: Species): Species[] {
     if (!kids.length && n.s !== s.slug) { const sp = db.bySlug.get(n.s); if (sp) out.push(sp) }
     kids.forEach(walk)
   }
-  const node = find(db.evolutions[s.chain])
+  const node = find(root)
   if (node) walk(node)
   return out
 }

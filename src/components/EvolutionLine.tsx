@@ -3,7 +3,7 @@ import { mainForm, thumb } from '../data/db'
 import type { Db, EvoNode, Form } from '../data/types'
 import { DlcBadge, Img, Types } from './ui'
 import { usePrefs } from '../store/prefs'
-import { isDlcSpecies } from '../lib/dlc'
+import { isDlcSpecies, withoutDlcBranches } from '../lib/dlc'
 
 interface Stage { node: EvoNode; parent?: string }
 
@@ -19,7 +19,11 @@ function stages(root: EvoNode): Stage[][] {
 
 /** Evolution line as columns of stages; every Pokémon in the game is tappable. */
 export function EvolutionLine({ db, chain, current, currentForm, shiny }: { db: Db; chain: number; current: string; currentForm: Form; shiny: boolean }) {
-  const root = db.evolutions[chain]
+  const dlc = usePrefs((p) => p.dlc)
+  const full = db.evolutions[chain]
+  const cur = db.bySlug.get(current)
+  // without the DLC, branches into DLC-only Pokémon are left out (unless this page is for one)
+  const root = full && withoutDlcBranches(db, full, dlc || !cur || isDlcSpecies(cur))
   if (!root || !root.to?.length) return <p className="text-sm muted">Does not evolve.</p>
   const cols = stages(root)
   if (cols.some((c) => c.length > 2)) {

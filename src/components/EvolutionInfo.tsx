@@ -3,7 +3,7 @@ import { formLabel, mainForm, thumb } from '../data/db'
 import type { Db, EvoNode, Form, Species } from '../data/types'
 import { DlcBadge, Img } from './ui'
 import { usePrefs } from '../store/prefs'
-import { dlcPart, isDlcForm, isDlcSpecies } from '../lib/dlc'
+import { dlcPart, isDlcForm, isDlcSpecies, withoutDlcBranches } from '../lib/dlc'
 
 // Branches that only apply to one regional form of the species (the rest of the chain is shared).
 const FORM_ONLY: Record<string, string> = {
@@ -49,7 +49,9 @@ function explain(how: string): { icon: string; tip: string | null } {
 
 /** Plain statement of how this Pokémon evolves and what it evolved from, shown near the top of its page. */
 export function EvolutionInfo({ db, s, f }: { db: Db; s: Species; f: Form }) {
-  const root = s.chain != null ? db.evolutions[s.chain] : null
+  const dlc = usePrefs((p) => p.dlc)
+  // without the DLC, evolutions into DLC-only Pokémon (Dipplin, Hydrapple) don't exist
+  const root = s.chain != null ? withoutDlcBranches(db, db.evolutions[s.chain], dlc || isDlcSpecies(s)) : null
   const hit = root ? findNode(root, s.slug) : null
   const branches = (hit?.node.to ?? []).filter((k) => applies(s.slug, k.s, f))
   const into: Edge[] = branches.filter((k) => !k.x).map((to) => ({ from: s.slug, to }))

@@ -6,7 +6,7 @@ import { findCounters } from './counters'
 import { summarizeTeam } from './team'
 import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
-import { isDlcForm, isDlcSpecies } from './dlc'
+import { isDlcForm, isDlcSpecies, withoutDlcBranches } from './dlc'
 import { buildHunt, methodOf, sortValue, spotCondition } from './hunt'
 import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
 
@@ -272,5 +272,28 @@ describe('form-only evolutions', () => {
     const barb = db.moves.findIndex((m) => m.n === 'Barb Barrage')
     const hisui = db.bySlug.get('qwilfish')!.forms.find((f) => f.slug === 'qwilfish-hisui')!
     expect(hisui.lv.some(([, m]) => m === barb)).toBe(true)
+  })
+})
+
+describe('evolutions without the DLC', () => {
+  const db = loadDb()
+  const names = (n: { s: string; to?: { s: string; to?: unknown[] }[] }): string[] => [n.s, ...(n.to ?? []).flatMap((k) => names(k as never))]
+  const chainOf = (slug: string) => db.evolutions[db.bySlug.get(slug)!.chain!]
+  it('drops branches into DLC-only Pokémon', () => {
+    expect(names(withoutDlcBranches(db, chainOf('applin'), false))).toEqual(['applin', 'flapple', 'appletun'])
+    expect(names(withoutDlcBranches(db, chainOf('wooper'), false))).toEqual(['wooper', 'clodsire'])
+    expect(names(withoutDlcBranches(db, chainOf('ursaring'), false))).not.toContain('ursaluna')
+  })
+  it('keeps the whole line with the DLC on, and leaves base-game-only lines alone', () => {
+    expect(names(withoutDlcBranches(db, chainOf('applin'), true))).toContain('hydrapple')
+    expect(withoutDlcBranches(db, chainOf('sprigatito'), false)).toBe(chainOf('sprigatito'))
+  })
+  it('only base-game Pokémon are left when the DLC is off', () => {
+    for (const root of Object.values(db.evolutions)) {
+      const r = withoutDlcBranches(db, root, false)
+      if (r === root && isDlcSpecies(db.bySlug.get(root.s) ?? ({ dex: { paldea: 1 } } as never))) continue // DLC-only line
+      const walk = (n: typeof root): void => { for (const k of n.to ?? []) { const s = db.bySlug.get(k.s); if (s && !k.x) expect(isDlcSpecies(s), k.s).toBe(false); walk(k) } }
+      walk(r)
+    }
   })
 })
