@@ -9,6 +9,7 @@ A phone-friendly Pokédex for **Pokémon Scarlet** (Paldea, Kitakami and Blueber
 - **Hunt**: a Paldea Pokédex completion checklist — all 400 entries with the easiest way to get each in base-game Scarlet (catch, evolve, trade for Violet-only ones on a link code, or a gift / one-time encounter), one row per Pokémon (multi-form species list each form and how to get it), a progress bar, filters by method, and sorting by dex number, BST, final-evolution BST or any stat, with time-of-day and condition badges
 - **Map**: every area and sub-area with each biome's Pokémon, odds and a time-of-day filter, plus fixed spots and items found there
 - **Bag**: every item and TM in Scarlet/Violet, what it does, where to get it, and which Pokémon each evolution item works on
+- **Boost the odds**: on a Pokémon you can find in the wild (and on Hunt with a type filter), the restaurant dish and sandwich recipe that give Encounter Power for its type — restaurant, towns and price, or the ingredients (linked to where to buy them) and where to get the recipe
 - Shiny odds calculator (Shiny Charm, Sparkling Power, outbreaks, Masuda)
 - "Weak against" / "Strong against" type matchups
 - **Beat a type**: pick an opponent type (or two) and get the best counters, optionally only from Pokémon you've caught
@@ -23,6 +24,7 @@ Live: https://turbotime29.github.io/Scarlet-Pokedex/
 python scripts/build_data.py                              # PokeAPI + Bulbapedia → public/data/*.json (cached in scripts/raw/)
 python scripts/build_encounters.py                        # Bulbapedia location + Tera Raid pages → encounters.json
 python scripts/build_items.py                             # Serebii SV items + TMs → items.json (evolution items linked to Pokémon)
+python scripts/build_meals.py                             # Serebii restaurants + sandwiches → src/data/encounterFood.ts (Encounter Power by type)
 python scripts/check_data.py                              # spot checks
 scripts/.venv/Scripts/python scripts/build_thumbs.py      # 128px WebP list thumbnails (needs Pillow)
 ```

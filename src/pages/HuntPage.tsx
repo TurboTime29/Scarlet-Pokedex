@@ -10,6 +10,7 @@ import { CaughtToggle, Img, TargetStar, Types } from '../components/ui'
 import { TIME_ICON, TIME_LABEL, noteIcon, rarity } from '../components/Encounters'
 import { CodeChip, TradeLine, monName } from '../components/LinkCodes'
 import { METHOD, MethodTag } from '../components/MethodTag'
+import { TypeBoostBanner } from '../components/EncounterBoost'
 
 const SORTS: { id: SortKey; label: string; short: string }[] = [
   { id: 'bst', label: 'Base stat total (BST)', short: 'BST' },
@@ -132,6 +133,7 @@ export default function HuntPage({ db }: { db: Db }) {
         {' '}<Link to="/trades" className="font-semibold text-scarlet-600 underline">All link codes</Link>
       </p>
 
+      {st.type && <TypeBoostBanner type={st.type} />}
       {st.targetsOnly && list.length > 0 && <BestAreas list={list} time={st.time} />}
       {st.targetsOnly && !list.length && <p className="py-6 text-center text-sm muted">{wanted.length ? 'All your targets are caught — nice! Turn off “Not caught yet” to see them again.' : 'No targets yet. Tap ☆ on any Pokémon below (or on its page) to add it.'}</p>}
 
