@@ -1,4 +1,4 @@
-import type { DexId, Form, Species } from '../data/types'
+import type { Db, DexId, EvoNode, Form, Species } from '../data/types'
 
 /**
  * Base game = the 400 Pokémon of the Paldea dex. Everything only in the Kitakami / Blueberry dexes needs
@@ -25,4 +25,21 @@ export const DLC_REGION: Record<Exclude<DexId, 'paldea'>, string> = {
 export function dlcPart(s: Species, f?: Form): string {
   const regions = (['kitakami', 'blueberry'] as const).filter((d) => (f ? s.dexForm[d] === f.slug : s.dex[d] != null))
   return regions.length === 1 ? DLC_REGION[regions[0]] : 'the DLC'
+}
+
+/**
+ * An evolution tree without the branches into DLC-only Pokémon (Applin → Dipplin → Hydrapple), for
+ * when the DLC is off. A DLC Pokémon that leads to a base-game one stays. Pass `keep` to get the tree
+ * back unchanged (the DLC is on, or the page is for a DLC Pokémon).
+ */
+export function withoutDlcBranches(db: Db, root: EvoNode, keep: boolean): EvoNode {
+  if (keep) return root
+  const isDlc = (n: EvoNode) => { const s = db.bySlug.get(n.s); return !!s && !n.x && isDlcSpecies(s) }
+  const prune = (n: EvoNode): EvoNode | null => {
+    const orig = n.to ?? []
+    const to = orig.map(prune).filter((k): k is EvoNode => k !== null)
+    if (isDlc(n) && !to.length) return null
+    return to.length === orig.length && to.every((k, i) => k === orig[i]) ? n : { ...n, to }
+  }
+  return prune(root) ?? root
 }
