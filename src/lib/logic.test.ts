@@ -263,3 +263,14 @@ describe('hunt targets sync', () => {
     expect(mergeProgress(base, phone).targets).toEqual(phone.targets)
   })
 })
+
+describe('form-only evolutions', () => {
+  const db = loadDb()
+  it('says Overqwil only comes from Hisuian Qwilfish, which learns Barb Barrage by level', () => {
+    const chain = db.evolutions[db.bySlug.get('qwilfish')!.chain!]
+    expect(chain.to?.find((k) => k.s === 'overqwil')?.how).toMatch(/Hisuian Qwilfish only/)
+    const barb = db.moves.findIndex((m) => m.n === 'Barb Barrage')
+    const hisui = db.bySlug.get('qwilfish')!.forms.find((f) => f.slug === 'qwilfish-hisui')!
+    expect(hisui.lv.some(([, m]) => m === barb)).toBe(true)
+  })
+})

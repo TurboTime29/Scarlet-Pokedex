@@ -1,17 +1,23 @@
 import { Link } from 'react-router-dom'
-import { mainForm, thumb } from '../data/db'
+import { formLabel, mainForm, thumb } from '../data/db'
 import type { Db, EvoNode, Form, Species } from '../data/types'
 import { DlcBadge, Img } from './ui'
 import { usePrefs } from '../store/prefs'
-import { dlcPart, isDlcSpecies } from '../lib/dlc'
+import { dlcPart, isDlcForm, isDlcSpecies } from '../lib/dlc'
 
 // Branches that only apply to one regional form of the species (the rest of the chain is shared).
 const FORM_ONLY: Record<string, string> = {
   'wooper>quagsire': 'wooper',
   'wooper>clodsire': 'wooper-paldea',
+  // Kantonian Qwilfish can learn Barb Barrage as an egg move but still never evolves
+  'qwilfish>overqwil': 'qwilfish-hisui',
 }
 
 interface Edge { from: string; to: EvoNode }
+
+/** "Hisuian Qwilfish", or "regular Wooper" for the unlabeled default form. */
+const formName = (s: Species, f: Form) => (f.label ? `${formLabel(f)} ${s.name}` : `regular ${s.name}`)
+const formPath = (s: Species, f: Form) => (f.default ? `/p/${s.slug}` : `/p/${s.slug}/${f.slug}`)
 
 function findNode(n: EvoNode, slug: string): { node: EvoNode; parent: EvoNode | null } | null {
   if (n.s === slug) return { node: n, parent: null }
@@ -50,12 +56,20 @@ export function EvolutionInfo({ db, s, f }: { db: Db; s: Species; f: Form }) {
   const outside = branches.filter((k) => k.x)
   const from = hit?.parent ? db.bySlug.get(hit.parent.s) ?? null : null
   const fromHow = hit?.node.how
+  // the form that evolves into this one, when only one form of `from` does (Hisuian Qwilfish → Overqwil)
+  const fromForm = from ? FORM_ONLY[`${from.slug}>${s.slug}`] : undefined
+  // branches only another form of this species can take
+  const otherForms = (hit?.node.to ?? []).filter((k) => !k.x && !applies(s.slug, k.s, f))
+  const otherFormNote = otherForms.length > 0 && <OtherFormNote db={db} s={s} branches={otherForms} />
 
   const outsideNote = outside.length > 0 && (
     <p className="mt-2 text-[11px] muted">It can also become {outside.map((k) => titleCase(k.s)).join(' or ')} in other games, but not in Scarlet/Violet.</p>
   )
 
   if (!into.length && !from) {
+    if (otherFormNote) {
+      return <div className="card p-3 text-sm"><span className="font-semibold">This {s.name} doesn’t evolve.</span>{otherFormNote}</div>
+    }
     return <div className="card p-3 text-sm"><span className="font-semibold">Doesn’t evolve.</span> <span className="muted">What you catch is what you get.</span></div>
   }
 
@@ -68,15 +82,47 @@ export function EvolutionInfo({ db, s, f }: { db: Db; s: Species; f: Form }) {
             {into.map(({ to }) => <EvoStep key={to.s} db={db} node={to} />)}
           </ul>
           {outsideNote}
+          {otherFormNote}
         </div>
+      ) : otherFormNote ? (
+        <div className="card p-3 text-sm"><span className="font-semibold">This {s.name} doesn’t evolve any further.</span>{otherFormNote}</div>
       ) : (
         <div className="card p-3 text-sm"><span className="font-semibold text-emerald-600">Fully evolved.</span> <span className="muted">This is its final form.</span></div>
       )}
       {from && (
         <p className="px-1 text-xs muted">
-          Evolves from <Link to={`/p/${from.slug}`} className="font-semibold underline">{from.name}</Link>{fromHow ? ` — ${lower(fromHow)}` : ''}.
+          Evolves from <FromLink from={from} formSlug={fromForm} />{fromHow ? ` — ${lower(fromHow)}` : ''}.
         </p>
       )}
+    </div>
+  )
+}
+
+function FromLink({ from, formSlug }: { from: Species; formSlug?: string }) {
+  const f = formSlug ? from.forms.find((x) => x.slug === formSlug) : undefined
+  return <Link to={f ? formPath(from, f) : `/p/${from.slug}`} className="font-semibold underline">{f ? formName(from, f) : from.name}</Link>
+}
+
+/** "Only Hisuian Qwilfish evolves into Overqwil" on the page of a form that can't. */
+function OtherFormNote({ db, s, branches }: { db: Db; s: Species; branches: EvoNode[] }) {
+  const dlc = usePrefs((p) => p.dlc)
+  return (
+    <div className="mt-2 space-y-1.5">
+      {branches.map((k) => {
+        const form = s.forms.find((x) => x.slug === FORM_ONLY[`${s.slug}>${k.s}`])
+        const target = db.bySlug.get(k.s)
+        if (!form || !target) return null
+        const name = formName(s, form)
+        const needsDlc = !dlc && isDlcForm(s, form)
+        return (
+          <p key={k.s} className="rounded-xl bg-amber-500/15 p-2.5 text-sm text-amber-900 dark:text-amber-100">
+            ⚠️ Only <Link to={formPath(s, form)} className="font-semibold underline">{name}</Link> evolves into{' '}
+            <Link to={`/p/${target.slug}`} className="font-semibold underline">{target.name}</Link>{k.how ? ` (${lower(k.how).replace(/ \(.*\)$/, '')})` : ''}.{' '}
+            This {s.name} can’t{k.how && /knowing/i.test(k.how) ? ', even if it knows the move' : ''}.
+            {needsDlc && <span className="mt-1 block text-xs">{name.charAt(0).toUpperCase() + name.slice(1)} is only in {dlcPart(s, form)}.</span>}
+          </p>
+        )
+      })}
     </div>
   )
 }

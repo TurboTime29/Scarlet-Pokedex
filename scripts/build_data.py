@@ -115,7 +115,7 @@ EVO_OVERRIDES = {
     "magnezone": "Use a Thunder Stone",
     "probopass": "Use a Thunder Stone",
     "crabominable": "Use an Ice Stone",
-    "overqwil": "Level up knowing Barb Barrage",
+    "overqwil": "Level up knowing Barb Barrage (Hisuian Qwilfish only)",
     "wyrdeer": "Use Psyshield Bash 20 times, then level up",
     "kleavor": "Use a Black Augurite",
     "lycanroc": "Lv 25 (day = Midday, night = Midnight, evening with Own Tempo = Dusk)",
