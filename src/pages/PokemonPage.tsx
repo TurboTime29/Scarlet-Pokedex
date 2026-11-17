@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { artwork, bst, formLabel, isFinal, mainForm, pad } from '../data/db'
+import { artwork, bst, formLabel, isFinal, mainForm, pad, useEncounters } from '../data/db'
 import { DEXES, type Db, type EvoNode, type Form, type Species } from '../data/types'
 import { TYPE_COLORS, type Type } from '../lib/types'
 import { TEAM_SIZE, usePrefs } from '../store/prefs'
@@ -13,6 +13,7 @@ import { Encounters } from '../components/Encounters'
 import { ShinyOdds } from '../components/ShinyOdds'
 import { EvolutionInfo } from '../components/EvolutionInfo'
 import { LinkCodesCard, VioletTradeHowTo } from '../components/LinkCodes'
+import { EncounterBoost } from '../components/EncounterBoost'
 
 const STAT_NAMES = ['HP', 'Attack', 'Defense', 'Sp. Atk', 'Sp. Def', 'Speed']
 
@@ -121,6 +122,8 @@ export default function PokemonPage({ db }: { db: Db }) {
         <Encounters db={db} s={s} f={f} />
       </section>
 
+      <WildBoost s={s} f={f} />
+
       <LinkCodesCard db={db} s={s.slug} f={f.slug} skipVioletSide={f.ver === 'violet'} />
 
       <WorthRaising db={db} s={s} f={f} />
@@ -178,6 +181,15 @@ function AvailabilityBanner({ db, s, f }: { db: Db; s: Species; f: Form }) {
     )
   }
   return null
+}
+
+/** What to eat to see this Pokémon more, when it spawns in the wild somewhere you can go. */
+function WildBoost({ s, f }: { s: Species; f: Form }) {
+  const enc = useEncounters()
+  const dlc = usePrefs((p) => p.dlc)
+  const wild = (enc?.[s.slug]?.wild ?? []).some((w) =>
+    (w.f ?? s.dexForm[w.r] ?? (s.forms.find((x) => x.default) ?? s.forms[0]).slug) === f.slug && w.v !== 'violet' && (dlc || w.r === 'paldea'))
+  return wild ? <EncounterBoost types={f.types} /> : null
 }
 
 /** The base stat total, where it ends up after evolving, and a plain-English verdict. */

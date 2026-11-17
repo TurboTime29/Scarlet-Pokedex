@@ -8,6 +8,8 @@ import { shinyChance, shinyRolls } from './shiny'
 import { mergeProgress, type ProgressDoc } from '../store/prefs'
 import { isDlcForm, isDlcSpecies, withoutDlcBranches } from './dlc'
 import { buildHunt, methodOf, sortValue, spotCondition } from './hunt'
+import { ENCOUNTER_FOOD } from '../data/encounterFood'
+import { boostFor } from '../components/EncounterBoost'
 import { EVO_CODES, EXCLUSIVE_CODES, STARTER_CODES, codesFor, violetTrade } from '../data/linkCodes'
 
 function loadDb(): Db {
@@ -297,3 +299,27 @@ describe('evolutions without the DLC', () => {
     }
   })
 })
+
+describe('encounter power food', () => {
+  const items = JSON.parse(readFileSync(new URL('../../public/data/items.json', import.meta.url), 'utf-8')) as { pockets: { items: { name: string }[] }[] }
+  const names = new Set(items.pockets.flatMap((p) => p.items.map((i) => i.name)))
+  it('has a sandwich for all 18 types, and every ingredient is in the Bag', () => {
+    expect(Object.keys(ENCOUNTER_FOOD).sort()).toEqual(['bug', 'dark', 'dragon', 'electric', 'fairy', 'fighting', 'fire', 'flying', 'ghost', 'grass', 'ground', 'ice', 'normal', 'poison', 'psychic', 'rock', 'steel', 'water'])
+    for (const f of Object.values(ENCOUNTER_FOOD)) {
+      expect(f.sandwiches.length).toBeGreaterThan(0)
+      for (const s of f.sandwiches) for (const x of [...s.ingredients, ...s.seasonings]) expect(names.has(x), x).toBe(true)
+    }
+  })
+  it('Grass: no base-game restaurant, so the Great Klawf Claw Sandwich', () => {
+    const off = boostFor('grass', false)
+    expect(off.dish).toBeUndefined()
+    expect(off.dlcDish?.name).toBe('Strawberry Shaved Ice')
+    expect(off.sandwich).toMatchObject({ name: 'Great Klawf Claw Sandwich', level: 2, herba: false })
+    expect(off.sandwich?.ingredients).toEqual(['Klawf Stick', 'Tomato', 'Lettuce'])
+    expect(boostFor('grass', true).dish?.restaurant).toBe('Shaved Ice Stand')
+  })
+  it('Fire: Mapo Tofu at Jade Palace Garden first', () => {
+    expect(boostFor('fire', false).dish).toMatchObject({ name: 'Mapo Tofu', restaurant: 'Jade Palace Garden', dlc: false })
+  })
+})
+
